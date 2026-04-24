@@ -82,7 +82,7 @@ public:
         std::memset(&addr, 0, sizeof(addr));
         addr.sin_family = AF_INET;
         addr.sin_port = htons(6454);
-        inet_pton(AF_INET, target_ip, &addr.sin_addr);
+        if(inet_pton(AF_INET, target_ip, &addr.sin_addr) != 1) return -1;
 
         int fd = socket(AF_INET, SOCK_DGRAM, 0);
         if(fd < 0) return -1;
@@ -92,7 +92,12 @@ public:
 
         ssize_t result = sendto(fd, buf, 18 + length, 0,
             reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
+        int err = errno;
         close(fd);
+
+        if(result < 0) {
+            fprintf(stderr, "bbb.artnet: sendto(%s) failed: %s\n", target_ip, strerror(err));
+        }
         return result > 0 ? 0 : -1;
     }
 
@@ -332,6 +337,9 @@ inline bool is_broadcast_ip(const std::string& target_ip) {
 
     struct in_addr target;
     if(inet_pton(AF_INET, target_ip.c_str(), &target) != 1) return false;
+
+    uint32_t t = target.s_addr;
+    if((t & 0xFF) == 0xFF || t == 0) return true;
 
     struct ifaddrs* ifa_list = nullptr;
     if(getifaddrs(&ifa_list) != 0) return false;

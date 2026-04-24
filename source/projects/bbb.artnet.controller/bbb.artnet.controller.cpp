@@ -73,9 +73,14 @@ public:
         c74::min::description{"Send all zeros (blackout)."}
     };
 
-    c74::min::attribute<c74::min::symbol> mode{this, "mode", "automatic",
-        c74::min::description{"Output mode: automatic, bang, update, change, forced."},
-        c74::min::range{"automatic", "bang", "update", "change", "forced"}
+    c74::min::attribute<int> mode{this, "mode", 0,
+        c74::min::description{"Output mode: 0=automatic, 1=bang, 2=update, 3=change, 4=forced."},
+        c74::min::range{"automatic", "bang", "update", "change", "forced"},
+        c74::min::style::enum_index,
+        c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
+            start_forced_timer();
+            return args;
+        }}
     };
 
     c74::min::attribute<double> framerate{this, "framerate", 40.0,
@@ -85,6 +90,13 @@ public:
 
     c74::min::attribute<c74::min::symbol> target_ip{this, "target_ip", "",
         c74::min::description{"Destination IP (empty = broadcast, broadcast addr = broadcast, unicast addr = unicast)."}
+    };
+
+    c74::min::attribute<int> origin{this, "origin", 1,
+        c74::min::description{"Channel index origin: 1 = 1-based (default), 0 = 0-based."},
+        c74::min::range{0, 1},
+        c74::min::style::enum_index,
+        c74::min::category{"DMX"}
     };
 
     c74::min::attribute<c74::min::symbol> bind_ip{this, "bind_ip", "",
@@ -153,13 +165,13 @@ public:
         }
     };
 
-    c74::min::message<> channel_msg{this, "channel", "Set a single DMX channel (1-based index).",
+    c74::min::message<> channel_msg{this, "channel", "Set a single DMX channel.",
         MIN_FUNCTION {
             if(args.size() < 2) {
                 return {};
             }
             std::lock_guard<std::mutex> lock(m_mutex);
-            int index = static_cast<int>(args[0]) - 1;
+            int index = static_cast<int>(args[0]) - static_cast<int>(origin);
             int value = static_cast<int>(args[1]);
             if(0 <= index && static_cast<size_t>(index) < m_buffer.size()) {
                 m_buffer[index] = static_cast<uint8_t>(std::max(0, std::min(255, value)));
@@ -170,13 +182,13 @@ public:
         }
     };
 
-    c74::min::message<> setchannel_msg{this, "setchannel", "Set a single DMX channel (1-based index).",
+    c74::min::message<> setchannel_msg{this, "setchannel", "Set a single DMX channel without sending.",
         MIN_FUNCTION {
             if(args.size() < 2) {
                 return {};
             }
             std::lock_guard<std::mutex> lock(m_mutex);
-            int index = static_cast<int>(args[0]) - 1;
+            int index = static_cast<int>(args[0]) - static_cast<int>(origin);
             int value = static_cast<int>(args[1]);
             if(0 <= index && static_cast<size_t>(index) < m_buffer.size()) {
                 m_buffer[index] = static_cast<uint8_t>(std::max(0, std::min(255, value)));
@@ -199,13 +211,13 @@ public:
         }
     };
 
-    c74::min::message<> set_offset_msg{this, "set_offset", "Store DMX values at offset (0-based) without sending.",
+    c74::min::message<> set_offset_msg{this, "set_offset", "Store DMX values at offset without sending.",
         MIN_FUNCTION {
             if(args.empty()) {
                 return {};
             }
             std::lock_guard<std::mutex> lock(m_mutex);
-            int offset = static_cast<int>(args[0]);
+            int offset = static_cast<int>(args[0]) - static_cast<int>(origin);
             for(size_t i = 1; i < args.size(); ++i) {
                 size_t idx = static_cast<size_t>(offset + static_cast<int>(i) - 1);
                 if(idx < m_buffer.size()) {
@@ -261,7 +273,7 @@ private:
              << ", mode: " << (is_unicast_mode() ? "unicast" : "broadcast")
              << c74::min::endl;
 
-        artnet_set_node_type(m_managed_node->node(), ARTNET_SRV);
+        artnet_set_node_type(m_managed_node->node(), ARTNET_RAW);
 
         for(int i = 0; i < num_universes; ++i) {
             artnet_set_port_type(m_managed_node->node(), i, ARTNET_ENABLE_OUTPUT, ARTNET_PORT_DMX);
@@ -286,7 +298,7 @@ private:
     };
 
     void start_forced_timer() {
-        if(mode == c74::min::symbol("forced")) {
+        if(mode == 4) {
             m_running = true;
             double interval = 1000.0 / static_cast<double>(framerate);
             m_forced_timer.delay(interval);
@@ -296,11 +308,12 @@ private:
     }
 
     void handle_mode_send() {
-        if(mode == c74::min::symbol("automatic")) {
+        int m = mode;
+        if(m == 0) {
             send_all();
-        } else if(mode == c74::min::symbol("update")) {
+        } else if(m == 2) {
             send_all();
-        } else if(mode == c74::min::symbol("change")) {
+        } else if(m == 3) {
             if(m_buffer != m_prev_buffer) {
                 send_all();
             }
