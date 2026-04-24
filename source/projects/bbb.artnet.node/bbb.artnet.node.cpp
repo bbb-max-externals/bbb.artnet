@@ -159,6 +159,7 @@ private:
         };
         m_managed_node->add_callback(cb);
         m_managed_node->retain();
+        cout << "bbb.artnet.node: bound to 0.0.0.0 (all interfaces)" << c74::min::endl;
     }
 
     void handle_dmx(const uint8_t* data, int length, int universe_addr) {

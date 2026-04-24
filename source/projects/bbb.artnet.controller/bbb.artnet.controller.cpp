@@ -242,7 +242,7 @@ private:
         c74::min::symbol bip = bind_ip;
         static std::string bip_str;
         bip_str = static_cast<std::string>(bip);
-        if(!bip_str.empty()) {
+        if(!bip_str.empty() && bip_str != "0.0.0.0") {
             return bip_str.c_str();
         }
 
@@ -262,6 +262,7 @@ private:
             cerr << "bbb.artnet.controller: failed to create artnet node" << c74::min::endl;
             return;
         }
+        cout << "bbb.artnet.controller: bound to " << (ip ? ip : "0.0.0.0 (all interfaces)") << c74::min::endl;
 
         artnet_set_node_type(m_managed_node->node(), ARTNET_SRV);
 

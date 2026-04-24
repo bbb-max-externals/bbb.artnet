@@ -14,6 +14,8 @@
 #include <atomic>
 #include <memory>
 #include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 
 namespace bbb { namespace artnet {
 
@@ -52,6 +54,8 @@ public:
         return node;
     }
 
+    std::string effective_ip() const { return m_effective_ip; }
+
     managed_node(const char* ip)
         : m_artnet_node(nullptr)
         , m_running(false)
@@ -62,6 +66,8 @@ public:
             m_artnet_node = artnet_new(nullptr, 0);
         }
         if(!m_artnet_node) return;
+
+        m_effective_ip = detect_local_ip(ip);
 
         artnet_set_handler(m_artnet_node, ARTNET_DMX_HANDLER,
             raw_dmx_callback, this);
@@ -100,16 +106,22 @@ public:
     }
 
     void release() {
-        std::lock_guard<std::mutex> lock(m_mutex);
-        --m_ref_count;
-        if(m_ref_count <= 0) {
-            m_running = false;
-            if(m_read_thread.joinable()) {
-                m_read_thread.join();
+        std::thread local_thread;
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            --m_ref_count;
+            if(m_ref_count <= 0) {
+                m_running = false;
+                if(m_artnet_node) {
+                    artnet_stop(m_artnet_node);
+                }
+                if(m_read_thread.joinable()) {
+                    local_thread = std::move(m_read_thread);
+                }
             }
-            if(m_artnet_node) {
-                artnet_stop(m_artnet_node);
-            }
+        }
+        if(local_thread.joinable()) {
+            local_thread.join();
         }
     }
 
@@ -206,33 +218,73 @@ private:
     int m_ref_count;
     std::mutex m_mutex;
     std::vector<callback_entry> m_callbacks;
+    std::string m_effective_ip;
+
+    static std::string detect_local_ip(const char* preferred) {
+        struct ifaddrs* ifa_list = nullptr;
+        if(getifaddrs(&ifa_list) != 0) return preferred ? preferred : "";
+
+        struct in_addr wanted;
+        bool has_wanted = preferred && inet_pton(AF_INET, preferred, &wanted) == 1;
+
+        char buf[INET_ADDRSTRLEN];
+        for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
+            if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
+            if(!(ifa->ifa_flags & IFF_UP)) continue;
+            if(ifa->ifa_flags & IFF_LOOPBACK) continue;
+
+            auto* sin = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
+            if(has_wanted && sin->sin_addr.s_addr == wanted.s_addr) {
+                inet_ntop(AF_INET, &sin->sin_addr, buf, sizeof(buf));
+                freeifaddrs(ifa_list);
+                return std::string(buf);
+            }
+        }
+
+        for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
+            if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
+            if(!(ifa->ifa_flags & IFF_UP)) continue;
+            if(ifa->ifa_flags & IFF_LOOPBACK) continue;
+            auto* sin = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
+            inet_ntop(AF_INET, &sin->sin_addr, buf, sizeof(buf));
+            freeifaddrs(ifa_list);
+            return std::string(buf);
+        }
+
+        freeifaddrs(ifa_list);
+        return preferred ? preferred : "";
+    }
 };
 
 inline const char* infer_bind_ip(const std::string& target_ip) {
     if(target_ip.empty() || target_ip == "0.0.0.0") return nullptr;
 
-    struct in_addr addr;
-    if(inet_pton(AF_INET, target_ip.c_str(), &addr) != 1) return nullptr;
+    struct in_addr target;
+    if(inet_pton(AF_INET, target_ip.c_str(), &target) != 1) return nullptr;
 
-    uint32_t a = ntohl(addr.s_addr);
-    uint8_t o[4] = {
-        static_cast<uint8_t>((a >> 24) & 0xFF),
-        static_cast<uint8_t>((a >> 16) & 0xFF),
-        static_cast<uint8_t>((a >> 8) & 0xFF),
-        static_cast<uint8_t>(a & 0xFF)
-    };
+    struct ifaddrs* ifa_list = nullptr;
+    if(getifaddrs(&ifa_list) != 0) return nullptr;
 
-    static char buf[16];
-    if(o[0] == 10) {
-        std::snprintf(buf, sizeof(buf), "10.%d.%d.%d", o[1], o[2], 1);
-    } else if(o[0] == 172 && o[1] >= 16 && o[1] <= 31) {
-        std::snprintf(buf, sizeof(buf), "172.%d.%d.%d", o[1], o[2], 1);
-    } else if(o[0] == 192 && o[1] == 168) {
-        std::snprintf(buf, sizeof(buf), "192.168.%d.%d", o[2], 1);
-    } else {
-        return nullptr;
+    static char buf[INET_ADDRSTRLEN];
+    for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
+        if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
+        if(!(ifa->ifa_flags & IFF_UP)) continue;
+        if(ifa->ifa_flags & IFF_LOOPBACK) continue;
+        if(!ifa->ifa_netmask) continue;
+
+        auto* sin = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
+        auto* mask = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_netmask);
+
+        if((sin->sin_addr.s_addr & mask->sin_addr.s_addr) ==
+           (target.s_addr & mask->sin_addr.s_addr)) {
+            inet_ntop(AF_INET, &sin->sin_addr, buf, sizeof(buf));
+            freeifaddrs(ifa_list);
+            return buf;
+        }
     }
-    return buf;
+
+    freeifaddrs(ifa_list);
+    return nullptr;
 }
 
 }} // namespace bbb::artnet

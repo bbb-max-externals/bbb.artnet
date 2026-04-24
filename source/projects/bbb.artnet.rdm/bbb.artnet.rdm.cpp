@@ -350,6 +350,7 @@ private:
         m_managed_node->add_callback(tod_cb);
 
         m_managed_node->retain();
+        cout << "bbb.artnet.rdm: bound to 0.0.0.0 (all interfaces)" << c74::min::endl;
     }
 
     void send_rdm(const rdm_uid& dest, uint8_t cc, uint16_t pid,
