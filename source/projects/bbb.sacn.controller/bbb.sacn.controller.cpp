@@ -1,5 +1,6 @@
 #include "c74_min.h"
 #include <bbb/sacn/sacn_packet.h>
+#include <bbb/version.h>
 
 #include <cstring>
 #include <vector>
@@ -184,7 +185,7 @@ public:
 
     c74::min::message<> maxclass_setup{this, "maxclass_setup",
         MIN_FUNCTION {
-            cout << "bbb.sacn.controller v0.1.0" << c74::min::endl;
+            cout << "bbb.sacn.controller v" BBB_ARTNET_VERSION << c74::min::endl;
             return {};
         }
     };

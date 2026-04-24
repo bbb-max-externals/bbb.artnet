@@ -1,7 +1,8 @@
-reference/**
+reference/
 
 build/
 externals/
+source/bbb/version.h
 .DS_Store
 *.o
 *.obj

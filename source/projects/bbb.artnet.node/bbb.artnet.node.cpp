@@ -1,6 +1,7 @@
 #include "c74_min.h"
 #include <artnet/artnet.h>
 #include <bbb/artnet/artnet_node_manager.hpp>
+#include <bbb/version.h>
 #pragma push_macro("NIL")
 #undef NIL
 #include <bbb/osc/asio_receiver.hpp>
@@ -76,6 +77,14 @@ public:
         c74::min::range{0, 65535}
     };
 
+    c74::min::timer<c74::min::timer_options::defer_delivery> m_init_timer{this,
+        MIN_FUNCTION {
+            init_artnet();
+            setup_osc();
+            return {};
+        }
+    };
+
     c74::min::timer<c74::min::timer_options::defer_delivery> m_osc_timer{this,
         MIN_FUNCTION {
             if(m_osc_receiver) {
@@ -98,8 +107,7 @@ public:
         m_buffer.resize(512 * num_universes, 0);
         m_prev_buffer.resize(512 * num_universes, 0);
         m_received_universes.resize(num_universes, false);
-        init_artnet();
-        setup_osc();
+        m_init_timer.delay(0);
     }
 
     ~artnet_node_obj() {
@@ -119,7 +127,7 @@ public:
 
     c74::min::message<> maxclass_setup{this, "maxclass_setup",
         MIN_FUNCTION {
-            cout << "bbb.artnet.node v0.1.0" << c74::min::endl;
+            cout << "bbb.artnet.node v" BBB_ARTNET_VERSION << c74::min::endl;
             return {};
         }
     };

@@ -2,6 +2,7 @@
 #include <artnet/artnet.h>
 #include <artnet/packets.h>
 #include <bbb/artnet/artnet_node_manager.hpp>
+#include <bbb/version.h>
 #include <cstring>
 #include <string>
 #include <vector>
@@ -131,6 +132,14 @@ public:
         c74::min::range{100, 10000}
     };
 
+    c74::min::timer<c74::min::timer_options::defer_delivery> m_init_timer{this,
+        MIN_FUNCTION {
+            init_artnet();
+            m_timer.delay(50);
+            return {};
+        }
+    };
+
     c74::min::timer<c74::min::timer_options::defer_delivery> m_timer{this,
         MIN_FUNCTION {
             process_timeout();
@@ -144,8 +153,7 @@ public:
         : m_next_tn{0}
         , m_has_pending{false}
     {
-        init_artnet();
-        m_timer.delay(50);
+        m_init_timer.delay(0);
     }
 
     ~artnet_rdm() {
@@ -292,7 +300,7 @@ public:
 
     c74::min::message<> maxclass_setup{this, "maxclass_setup",
         MIN_FUNCTION {
-            cout << "bbb.artnet.rdm v0.1.0" << c74::min::endl;
+            cout << "bbb.artnet.rdm v" BBB_ARTNET_VERSION << c74::min::endl;
             return {};
         }
     };
