@@ -11,7 +11,6 @@
 #include <mutex>
 #include <atomic>
 #include <chrono>
-#include <thread>
 
 class artnet_controller : public c74::min::object<artnet_controller> {
 public:
@@ -115,15 +114,6 @@ public:
         }
     };
 
-    c74::min::timer<c74::min::timer_options::defer_delivery> m_output_timer{this,
-        MIN_FUNCTION {
-            if(m_pending_bang.exchange(false)) {
-                output.send(c74::min::k_sym_bang);
-            }
-            return {};
-        }
-    };
-
     artnet_controller(const c74::min::atoms& args = {})
         : m_running{false}
         , m_dirty{false}
@@ -135,9 +125,6 @@ public:
 
     ~artnet_controller() {
         m_running = false;
-        if(m_thread.joinable()) {
-            m_thread.join();
-        }
         if(m_managed_node) {
             m_managed_node->remove_callbacks(this);
             m_managed_node->release();
@@ -284,38 +271,27 @@ private:
         artnet_set_subnet_addr(m_managed_node->node(), subnet);
 
         m_managed_node->retain();
-        start_thread();
+        start_forced_timer();
     }
 
-    void start_thread() {
-        if(mode == c74::min::symbol("forced")) {
-            if(!m_running) {
-                m_running = true;
-                if(m_thread.joinable()) {
-                    m_thread.join();
-                }
-                m_thread = std::thread([this]() {
-                    forced_framerate_loop();
-                });
+    c74::min::timer<c74::min::timer_options::defer_delivery> m_forced_timer{this,
+        MIN_FUNCTION {
+            if(m_running) {
+                send_all();
+                double interval = 1000.0 / static_cast<double>(framerate);
+                m_forced_timer.delay(interval);
             }
+            return {};
+        }
+    };
+
+    void start_forced_timer() {
+        if(mode == c74::min::symbol("forced")) {
+            m_running = true;
+            double interval = 1000.0 / static_cast<double>(framerate);
+            m_forced_timer.delay(interval);
         } else {
             m_running = false;
-            if(m_thread.joinable()) {
-                m_thread.join();
-            }
-        }
-    }
-
-    void forced_framerate_loop() {
-        while(m_running) {
-            {
-                std::lock_guard<std::mutex> lock(m_mutex);
-                send_all();
-            }
-            double interval = 1000.0 / framerate;
-            std::this_thread::sleep_for(
-                std::chrono::milliseconds(static_cast<int>(interval))
-            );
         }
     }
 
@@ -370,18 +346,15 @@ private:
 
         m_prev_buffer = m_buffer;
         m_dirty = false;
-        m_pending_bang = true;
-        m_output_timer.delay(0);
+        output.send(c74::min::k_sym_bang);
     }
 
     std::shared_ptr<bbb::artnet::managed_node> m_managed_node;
     std::vector<uint8_t> m_buffer;
     std::vector<uint8_t> m_prev_buffer;
     std::mutex m_mutex;
-    std::thread m_thread;
     std::atomic<bool> m_running;
     std::atomic<bool> m_dirty;
-    std::atomic<bool> m_pending_bang{false};
 
     std::shared_ptr<bbb::osc::asio_receiver> m_osc_receiver;
 
