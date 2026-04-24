@@ -6,11 +6,6 @@ include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
 include_directories(
     "${C74_INCLUDES}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../source"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../../deps/libartnet"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../../deps/osc/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../../deps/osc/third-party/asio/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../../deps/osc/third-party/bit_by_bit/include"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../../../deps/osc/third-party/oscpp/include"
 )
 
 set(SOURCE_FILES
@@ -22,8 +17,6 @@ add_library(
     MODULE
     ${SOURCE_FILES}
 )
-
-target_link_libraries(${PROJECT_NAME} PRIVATE artnet)
 
 set(HELP_SOURCE "${CMAKE_CURRENT_SOURCE_DIR}/${PROJECT_NAME}.maxhelp")
 set(HELP_DEST "${CMAKE_CURRENT_SOURCE_DIR}/../../../help/${PROJECT_NAME}.maxhelp")

@@ -1,15 +1,14 @@
 #include "c74_min.h"
 #include <artnet/artnet.h>
+#include <bbb/artnet/artnet_node_manager.hpp>
 #pragma push_macro("NIL")
 #undef NIL
 #include <bbb/osc/asio_receiver.hpp>
 #include <bbb/osc/message.hpp>
 #include <cstring>
 #include <vector>
-#include <thread>
 #include <mutex>
 #include <atomic>
-#include <chrono>
 
 class artnet_node_obj : public c74::min::object<artnet_node_obj> {
 public:
@@ -22,21 +21,15 @@ public:
     c74::min::outlet<> output{this, "(list) DMX values as list of integers"};
 
     c74::min::argument<int> net_arg{this, "net", "Art-Net net address (0-127).",
-        MIN_ARGUMENT_FUNCTION {
-            net = arg;
-        }
+        MIN_ARGUMENT_FUNCTION { net = arg; }
     };
 
     c74::min::argument<int> subnet_arg{this, "subnet", "Art-Net subnet address (0-15).",
-        MIN_ARGUMENT_FUNCTION {
-            subnet = arg;
-        }
+        MIN_ARGUMENT_FUNCTION { subnet = arg; }
     };
 
     c74::min::argument<int> universe_arg{this, "universe", "Art-Net universe address (0-15).",
-        MIN_ARGUMENT_FUNCTION {
-            universe = arg;
-        }
+        MIN_ARGUMENT_FUNCTION { universe = arg; }
     };
 
     c74::min::attribute<int> net{this, "net", 0,
@@ -93,10 +86,15 @@ public:
         }
     };
 
-    artnet_node_obj(const c74::min::atoms& args = {})
-        : m_node{nullptr}
-        , m_running{false}
-    {
+    c74::min::timer<c74::min::timer_options::defer_delivery> m_output_timer{this,
+        MIN_FUNCTION {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            output_data();
+            return {};
+        }
+    };
+
+    artnet_node_obj(const c74::min::atoms& args = {}) {
         m_buffer.resize(512 * num_universes, 0);
         m_prev_buffer.resize(512 * num_universes, 0);
         m_received_universes.resize(num_universes, false);
@@ -105,16 +103,9 @@ public:
     }
 
     ~artnet_node_obj() {
-        m_running = false;
-        if(m_thread.joinable()) {
-            m_thread.join();
-        }
-        if(m_read_thread.joinable()) {
-            m_read_thread.join();
-        }
-        if(m_node) {
-            artnet_stop(m_node);
-            artnet_destroy(m_node);
+        if(m_managed_node) {
+            m_managed_node->remove_callbacks(this);
+            m_managed_node->release();
         }
     }
 
@@ -134,49 +125,76 @@ public:
     };
 
 private:
-    static int dmx_handler(artnet_node n, int port, void* d) {
-        auto* self = static_cast<artnet_node_obj*>(d);
-        int length = 0;
-        uint8_t* data = artnet_read_dmx(n, port, &length);
-        if(!data || length <= 0) return 0;
-
-        std::lock_guard<std::mutex> lock(self->m_mutex);
-        int offset = port * 512;
-        int copy_len = std::min(length, 512);
-        if(offset + copy_len <= static_cast<int>(self->m_buffer.size())) {
-            std::memcpy(self->m_buffer.data() + offset, data, copy_len);
+    void init_artnet() {
+        m_managed_node = bbb::artnet::managed_node::get_or_create(nullptr);
+        if(!m_managed_node || !m_managed_node->valid()) {
+            cerr << "bbb.artnet.node: failed to create artnet node" << c74::min::endl;
+            return;
         }
 
-        if(self->sync_universes && self->num_universes > 1) {
-            if(port < static_cast<int>(self->m_received_universes.size())) {
-                self->m_received_universes[port] = true;
+        artnet_set_node_type(m_managed_node->node(), ARTNET_NODE);
+        artnet_set_short_name(m_managed_node->node(), "bbb.artnet.node");
+        artnet_set_long_name(m_managed_node->node(), "bbb.artnet.node - Art-Net DMX Receiver");
+
+        for(int i = 0; i < num_universes; ++i) {
+            artnet_set_port_type(m_managed_node->node(), i, ARTNET_ENABLE_INPUT, ARTNET_PORT_DMX);
+            artnet_set_port_addr(m_managed_node->node(), i, ARTNET_INPUT_PORT,
+                (universe + i) & 0x0F);
+        }
+        artnet_set_subnet_addr(m_managed_node->node(), subnet);
+
+        bbb::artnet::callback_entry cb;
+        cb.type = bbb::artnet::callback_type::dmx;
+        cb.owner = this;
+        cb.dmx_fn = [this](const uint8_t* data, int length, int universe_addr) {
+            handle_dmx(data, length, universe_addr);
+        };
+        m_managed_node->add_callback(cb);
+        m_managed_node->retain();
+    }
+
+    void handle_dmx(const uint8_t* data, int length, int universe_addr) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        int port = -1;
+        for(int i = 0; i < num_universes; ++i) {
+            if(((universe + i) & 0x0F) == (universe_addr & 0x0F)) {
+                port = i;
+                break;
+            }
+        }
+        if(port < 0) return;
+
+        int offset = port * 512;
+        int copy_len = std::min(length, 512);
+        if(offset + copy_len <= static_cast<int>(m_buffer.size())) {
+            std::memcpy(m_buffer.data() + offset, data, copy_len);
+        }
+
+        if(sync_universes && num_universes > 1) {
+            if(port < static_cast<int>(m_received_universes.size())) {
+                m_received_universes[port] = true;
             }
             bool all_received = true;
-            for(auto received : self->m_received_universes) {
-                if(!received) {
-                    all_received = false;
-                    break;
-                }
+            for(auto received : m_received_universes) {
+                if(!received) { all_received = false; break; }
             }
-            if(!all_received) return 0;
-
-            for(auto&& received : self->m_received_universes) {
+            if(!all_received) return;
+            for(auto&& received : m_received_universes) {
                 received = false;
             }
         }
 
-        self->handle_mode_output();
-        return 0;
+        handle_mode_output();
     }
 
     void handle_mode_output() {
         if(mode == c74::min::symbol("update")) {
-            output_data();
+            m_output_timer.delay(0);
         } else if(mode == c74::min::symbol("automatic")) {
-            output_data();
+            m_output_timer.delay(0);
         } else if(mode == c74::min::symbol("change")) {
             if(m_buffer != m_prev_buffer) {
-                output_data();
+                m_output_timer.delay(0);
             }
         }
     }
@@ -192,52 +210,11 @@ private:
         m_prev_buffer = m_buffer;
     }
 
-    void init_artnet() {
-        if(m_node) {
-            artnet_stop(m_node);
-            artnet_destroy(m_node);
-        }
-
-        m_node = artnet_new(nullptr, 0);
-        if(!m_node) {
-            cerr << "bbb.artnet.node: failed to create artnet node" << c74::min::endl;
-            return;
-        }
-
-        artnet_set_node_type(m_node, ARTNET_NODE);
-        artnet_set_short_name(m_node, "bbb.artnet.node");
-        artnet_set_long_name(m_node, "bbb.artnet.node - Art-Net DMX Receiver");
-
-        for(int i = 0; i < num_universes; ++i) {
-            artnet_set_port_type(m_node, i, ARTNET_ENABLE_INPUT, ARTNET_PORT_DMX);
-            artnet_set_port_addr(m_node, i, ARTNET_INPUT_PORT,
-                (universe + i) & 0x0F);
-        }
-        artnet_set_subnet_addr(m_node, subnet);
-
-        artnet_set_dmx_handler(m_node, dmx_handler, this);
-
-        if(artnet_start(m_node) != ARTNET_EOK) {
-            cerr << "bbb.artnet.node: failed to start artnet node" << c74::min::endl;
-            return;
-        }
-
-        m_running = true;
-        m_read_thread = std::thread([this]() {
-            while(m_running) {
-                artnet_read(m_node, 1);
-            }
-        });
-    }
-
-    ::artnet_node m_node;
+    std::shared_ptr<bbb::artnet::managed_node> m_managed_node;
     std::vector<uint8_t> m_buffer;
     std::vector<uint8_t> m_prev_buffer;
     std::vector<bool> m_received_universes;
     std::mutex m_mutex;
-    std::thread m_read_thread;
-    std::thread m_thread;
-    std::atomic<bool> m_running;
 
     std::shared_ptr<bbb::osc::asio_receiver> m_osc_receiver;
 

@@ -1,0 +1,9 @@
+{
+	"name" : "bbb.artnet",
+	"type" : "package",
+	"author" : "2bit",
+	"description" : "bbb.artnet is a collection of Max/MSP externals for Art-Net and sACN DMX send/receive, including RDM support.",
+	"version" : "0.1.0",
+	"major_version" : "0",
+	"minor_version" : "1"
+}

@@ -1,15 +1,16 @@
 #include "c74_min.h"
 #include <artnet/artnet.h>
+#include <bbb/artnet/artnet_node_manager.hpp>
 #pragma push_macro("NIL")
 #undef NIL
 #include <bbb/osc/asio_receiver.hpp>
 #include <bbb/osc/message.hpp>
 #include <cstring>
 #include <vector>
-#include <thread>
 #include <mutex>
 #include <atomic>
 #include <chrono>
+#include <thread>
 
 class artnet_controller : public c74::min::object<artnet_controller> {
 public:
@@ -90,6 +91,10 @@ public:
         c74::min::description{"Destination IP for unicast mode."}
     };
 
+    c74::min::attribute<c74::min::symbol> bind_ip{this, "bind_ip", "",
+        c74::min::description{"Local IP to bind (empty = auto-detect from unicast_ip subnet)."}
+    };
+
     c74::min::attribute<bool> alt_broadcast_ip{this, "alt_broadcast_ip", false,
         c74::min::description{"Use 10.x.x.x broadcast range instead of 2.x.x.x."}
     };
@@ -110,8 +115,7 @@ public:
     };
 
     artnet_controller(const c74::min::atoms& args = {})
-        : m_node{nullptr}
-        , m_running{false}
+        : m_running{false}
         , m_dirty{false}
     {
         m_buffer.resize(512 * num_universes, 0);
@@ -125,9 +129,9 @@ public:
         if(m_thread.joinable()) {
             m_thread.join();
         }
-        if(m_node) {
-            artnet_stop(m_node);
-            artnet_destroy(m_node);
+        if(m_managed_node) {
+            m_managed_node->remove_callbacks(this);
+            m_managed_node->release();
         }
     }
 
@@ -226,42 +230,41 @@ public:
     };
 
 private:
-    void init_artnet() {
-        if(m_node) {
-            artnet_stop(m_node);
-            artnet_destroy(m_node);
+    const char* resolve_bind_ip() {
+        c74::min::symbol bip = bind_ip;
+        static std::string bip_str;
+        bip_str = static_cast<std::string>(bip);
+        if(!bip_str.empty()) {
+            return bip_str.c_str();
         }
 
-        const char* ip = nullptr;
-        std::string ip_str;
         if(unicast) {
-            c74::min::symbol ip_sym = unicast_ip;
-            ip_str = static_cast<std::string>(ip_sym);
-            if(!ip_str.empty() && ip_str != "0.0.0.0") {
-                ip = ip_str.c_str();
-            }
+            c74::min::symbol uip = unicast_ip;
+            std::string uip_str = static_cast<std::string>(uip);
+            return bbb::artnet::infer_bind_ip(uip_str);
         }
 
-        m_node = artnet_new(ip, 0);
-        if(!m_node) {
+        return nullptr;
+    }
+
+    void init_artnet() {
+        const char* ip = resolve_bind_ip();
+        m_managed_node = bbb::artnet::managed_node::get_or_create(ip);
+        if(!m_managed_node || !m_managed_node->valid()) {
             cerr << "bbb.artnet.controller: failed to create artnet node" << c74::min::endl;
             return;
         }
 
-        artnet_set_node_type(m_node, ARTNET_SRV);
+        artnet_set_node_type(m_managed_node->node(), ARTNET_SRV);
 
         for(int i = 0; i < num_universes; ++i) {
-            artnet_set_port_type(m_node, i, ARTNET_ENABLE_OUTPUT, ARTNET_PORT_DMX);
-            artnet_set_port_addr(m_node, i, ARTNET_OUTPUT_PORT,
+            artnet_set_port_type(m_managed_node->node(), i, ARTNET_ENABLE_OUTPUT, ARTNET_PORT_DMX);
+            artnet_set_port_addr(m_managed_node->node(), i, ARTNET_OUTPUT_PORT,
                 (universe + i) & 0x0F);
         }
-        artnet_set_subnet_addr(m_node, subnet);
+        artnet_set_subnet_addr(m_managed_node->node(), subnet);
 
-        if(artnet_start(m_node) != ARTNET_EOK) {
-            cerr << "bbb.artnet.controller: failed to start artnet node" << c74::min::endl;
-            return;
-        }
-
+        m_managed_node->retain();
         start_thread();
     }
 
@@ -310,12 +313,14 @@ private:
     }
 
     void send_all() {
-        if(!m_node) return;
+        if(!m_managed_node || !m_managed_node->valid()) return;
+
+        artnet_node node = m_managed_node->node();
 
         if(blackout) {
             std::vector<uint8_t> zeros(512, 0);
             for(int i = 0; i < num_universes; ++i) {
-                artnet_raw_send_dmx(m_node,
+                artnet_raw_send_dmx(node,
                     (universe + i) & 0xFF,
                     512,
                     zeros.data());
@@ -325,7 +330,7 @@ private:
                 int offset = i * 512;
                 int length = std::min(512, static_cast<int>(m_buffer.size()) - offset);
                 if(length > 0) {
-                    artnet_raw_send_dmx(m_node,
+                    artnet_raw_send_dmx(node,
                         (universe + i) & 0xFF,
                         static_cast<int16_t>(length),
                         m_buffer.data() + offset);
@@ -338,7 +343,7 @@ private:
         output.send(c74::min::k_sym_bang);
     }
 
-    artnet_node m_node;
+    std::shared_ptr<bbb::artnet::managed_node> m_managed_node;
     std::vector<uint8_t> m_buffer;
     std::vector<uint8_t> m_prev_buffer;
     std::mutex m_mutex;
