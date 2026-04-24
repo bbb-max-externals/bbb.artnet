@@ -75,8 +75,7 @@ public:
 
     c74::min::attribute<int> mode{this, "mode", 0,
         c74::min::description{"Output mode: 0=automatic, 1=bang, 2=update, 3=change, 4=forced."},
-        c74::min::range{"automatic", "bang", "update", "change", "forced"},
-        c74::min::style::enum_index,
+        c74::min::enum_map{"automatic", "bang", "update", "change", "forced"},
         c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
             start_forced_timer();
             return args;

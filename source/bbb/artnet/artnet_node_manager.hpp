@@ -273,16 +273,17 @@ private:
         bool has_wanted = preferred && inet_pton(AF_INET, preferred, &wanted) == 1;
 
         char buf[INET_ADDRSTRLEN];
-        for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
-            if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
-            if(!(ifa->ifa_flags & IFF_UP)) continue;
-            if(ifa->ifa_flags & IFF_LOOPBACK) continue;
 
-            auto* sin = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
-            if(has_wanted && sin->sin_addr.s_addr == wanted.s_addr) {
-                inet_ntop(AF_INET, &sin->sin_addr, buf, sizeof(buf));
-                freeifaddrs(ifa_list);
-                return std::string(buf);
+        if(has_wanted) {
+            for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
+                if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
+                if(!(ifa->ifa_flags & IFF_UP)) continue;
+                auto* sin = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
+                if(sin->sin_addr.s_addr == wanted.s_addr) {
+                    inet_ntop(AF_INET, &sin->sin_addr, buf, sizeof(buf));
+                    freeifaddrs(ifa_list);
+                    return std::string(buf);
+                }
             }
         }
 
@@ -314,7 +315,6 @@ inline const char* resolve_bind_ip(const std::string& target_ip) {
     for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
         if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
         if(!(ifa->ifa_flags & IFF_UP)) continue;
-        if(ifa->ifa_flags & IFF_LOOPBACK) continue;
         if(!ifa->ifa_netmask) continue;
 
         auto* sin = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
@@ -346,6 +346,7 @@ inline bool is_broadcast_ip(const std::string& target_ip) {
 
     for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
         if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
+        if(ifa->ifa_flags & IFF_LOOPBACK) continue;
         if(!ifa->ifa_broadaddr) continue;
         auto* bcast = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_broadaddr);
         if(bcast->sin_addr.s_addr == target.s_addr) {
