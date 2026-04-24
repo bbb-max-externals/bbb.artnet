@@ -115,6 +115,13 @@ public:
         }
     };
 
+    c74::min::timer<c74::min::timer_options::defer_delivery> m_output_timer{this,
+        MIN_FUNCTION {
+            output.send(c74::min::k_sym_bang);
+            return {};
+        }
+    };
+
     artnet_controller(const c74::min::atoms& args = {})
         : m_running{false}
         , m_dirty{false}
@@ -361,7 +368,7 @@ private:
 
         m_prev_buffer = m_buffer;
         m_dirty = false;
-        output.send(c74::min::k_sym_bang);
+        m_output_timer.delay(0);
     }
 
     std::shared_ptr<bbb::artnet::managed_node> m_managed_node;
