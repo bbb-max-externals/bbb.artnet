@@ -3,6 +3,7 @@
 #include <artnet/artnet.h>
 #include <artnet/packets.h>
 #include <cstring>
+#include <cstdio>
 #include <string>
 #include <map>
 #include <vector>
@@ -57,6 +58,9 @@ public:
         , m_ref_count(0)
     {
         m_artnet_node = artnet_new(ip, 0);
+        if(!m_artnet_node && ip) {
+            m_artnet_node = artnet_new(nullptr, 0);
+        }
         if(!m_artnet_node) return;
 
         artnet_set_handler(m_artnet_node, ARTNET_DMX_HANDLER,

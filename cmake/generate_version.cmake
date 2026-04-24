@@ -1,0 +1,21 @@
+execute_process(
+    COMMAND git rev-list --count HEAD
+    WORKING_DIRECTORY ${WORKING_DIR}
+    OUTPUT_VARIABLE GIT_COMMIT_COUNT
+    OUTPUT_STRIP_TRAILING_WHITESPACE
+    ERROR_QUIET
+)
+if(NOT GIT_COMMIT_COUNT)
+    set(GIT_COMMIT_COUNT 1)
+endif()
+
+set(VERSION_STRING "0.0.${GIT_COMMIT_COUNT}")
+
+if(EXISTS ${VERSION_FILE})
+    file(READ ${VERSION_FILE} EXISTING)
+    if(EXISTING STREQUAL "#pragma once\n#define BBB_ARTNET_VERSION \"${VERSION_STRING}\"\n")
+        return()
+    endif()
+endif()
+
+file(WRITE ${VERSION_FILE} "#pragma once\n#define BBB_ARTNET_VERSION \"${VERSION_STRING}\"\n")
