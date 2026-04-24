@@ -12,7 +12,7 @@
 			100.0,
 			100.0,
 			860.0,
-			916.0
+			868.0
 		],
 		"bglocked": 0,
 		"openinpresentation": 0,
@@ -716,7 +716,7 @@
 			},
 			{
 				"box": {
-					"attr": "unicast",
+					"attr": "target_ip",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-35",
@@ -730,7 +730,7 @@
 					"patching_rect": [
 						520.0,
 						564.0,
-						160.0,
+						200.0,
 						22.0
 					],
 					"style": ""
@@ -751,12 +751,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Enable unicast mode (default: 1)"
+					"text": "Destination IP (empty=broadcast)"
 				}
 			},
 			{
 				"box": {
-					"attr": "unicast_ip",
+					"attr": "bind_ip",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-37",
@@ -791,12 +791,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Destination IP for unicast"
+					"text": "Local bind IP (empty=auto)"
 				}
 			},
 			{
 				"box": {
-					"attr": "alt_broadcast_ip",
+					"attr": "osc_port",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-39",
@@ -810,7 +810,7 @@
 					"patching_rect": [
 						520.0,
 						660.0,
-						200.0,
+						160.0,
 						22.0
 					],
 					"style": ""
@@ -831,46 +831,6 @@
 						18.0
 					],
 					"style": "",
-					"text": "Use 10.x.x.x broadcast range"
-				}
-			},
-			{
-				"box": {
-					"attr": "osc_port",
-					"fontname": "Arial",
-					"fontsize": 12.0,
-					"id": "obj-41",
-					"lock": 1,
-					"maxclass": "attrui",
-					"numinlets": 1,
-					"numoutlets": 1,
-					"outlettype": [
-						""
-					],
-					"patching_rect": [
-						520.0,
-						708.0,
-						160.0,
-						22.0
-					],
-					"style": ""
-				}
-			},
-			{
-				"box": {
-					"fontname": "Arial",
-					"fontsize": 12.0,
-					"id": "obj-42",
-					"maxclass": "comment",
-					"numinlets": 1,
-					"numoutlets": 0,
-					"patching_rect": [
-						520.0,
-						731.0,
-						300.0,
-						18.0
-					],
-					"style": "",
 					"text": "OSC feedback port"
 				}
 			},
@@ -878,18 +838,18 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-43",
+					"id": "obj-41",
 					"maxclass": "newobj",
 					"numinlets": 1,
 					"numoutlets": 1,
 					"patching_rect": [
 						20.0,
-						796.0,
-						432.5,
+						748.0,
+						455.0,
 						22.0
 					],
 					"style": "",
-					"text": "bbb.artnet.controller @unicast_ip 127.0.0.1 @universe 1",
+					"text": "bbb.artnet.controller @target_ip 192.168.1.100 @universe 1",
 					"outlettype": [
 						"bang"
 					]
@@ -897,7 +857,7 @@
 			},
 			{
 				"box": {
-					"id": "obj-44",
+					"id": "obj-42",
 					"maxclass": "button",
 					"numinlets": 1,
 					"numoutlets": 1,
@@ -906,7 +866,7 @@
 					],
 					"patching_rect": [
 						20.0,
-						836.0,
+						788.0,
 						20.0,
 						20.0
 					],
@@ -917,13 +877,13 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-45",
+					"id": "obj-43",
 					"maxclass": "newobj",
 					"numinlets": 1,
 					"numoutlets": 0,
 					"patching_rect": [
 						50.0,
-						836.0,
+						788.0,
 						180.0,
 						22.0
 					],
@@ -935,13 +895,13 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-46",
+					"id": "obj-44",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
 					"patching_rect": [
 						50.0,
-						861.0,
+						813.0,
 						300.0,
 						20.0
 					],
@@ -954,7 +914,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -968,7 +928,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -982,7 +942,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -996,7 +956,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1010,7 +970,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1024,7 +984,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1038,7 +998,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1052,7 +1012,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1066,7 +1026,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1080,7 +1040,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1094,7 +1054,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1108,7 +1068,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1122,7 +1082,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1136,7 +1096,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1150,7 +1110,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1164,7 +1124,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1178,7 +1138,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
@@ -1192,13 +1152,27 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-43",
+						"obj-41",
 						0
 					],
 					"disabled": 0,
 					"hidden": 0,
 					"source": [
 						"obj-39",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"destination": [
+						"obj-42",
+						0
+					],
+					"disabled": 0,
+					"hidden": 0,
+					"source": [
+						"obj-41",
 						0
 					]
 				}
@@ -1213,34 +1187,6 @@
 					"hidden": 0,
 					"source": [
 						"obj-41",
-						0
-					]
-				}
-			},
-			{
-				"patchline": {
-					"destination": [
-						"obj-44",
-						0
-					],
-					"disabled": 0,
-					"hidden": 0,
-					"source": [
-						"obj-43",
-						0
-					]
-				}
-			},
-			{
-				"patchline": {
-					"destination": [
-						"obj-45",
-						0
-					],
-					"disabled": 0,
-					"hidden": 0,
-					"source": [
-						"obj-43",
 						0
 					]
 				}

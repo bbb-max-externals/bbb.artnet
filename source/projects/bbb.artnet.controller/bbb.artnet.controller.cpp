@@ -84,20 +84,12 @@ public:
         c74::min::range{0.01, 44.0}
     };
 
-    c74::min::attribute<bool> unicast{this, "unicast", true,
-        c74::min::description{"Use unicast mode."}
-    };
-
-    c74::min::attribute<c74::min::symbol> unicast_ip{this, "unicast_ip", "127.0.0.1",
-        c74::min::description{"Destination IP for unicast mode."}
+    c74::min::attribute<c74::min::symbol> target_ip{this, "target_ip", "",
+        c74::min::description{"Destination IP (empty = broadcast, broadcast addr = broadcast, unicast addr = unicast)."}
     };
 
     c74::min::attribute<c74::min::symbol> bind_ip{this, "bind_ip", "",
-        c74::min::description{"Local IP to bind (empty = auto-detect from unicast_ip subnet)."}
-    };
-
-    c74::min::attribute<bool> alt_broadcast_ip{this, "alt_broadcast_ip", false,
-        c74::min::description{"Use 10.x.x.x broadcast range instead of 2.x.x.x."}
+        c74::min::description{"Local IP to bind (empty = auto-detect from target_ip subnet)."}
     };
 
     c74::min::attribute<int> osc_port{this, "osc_port", 0,
@@ -246,13 +238,20 @@ private:
             return bip_str.c_str();
         }
 
-        if(unicast) {
-            c74::min::symbol uip = unicast_ip;
-            std::string uip_str = static_cast<std::string>(uip);
-            return bbb::artnet::infer_bind_ip(uip_str);
-        }
+        c74::min::symbol tip = target_ip;
+        std::string tip_str = static_cast<std::string>(tip);
+        return bbb::artnet::resolve_bind_ip(tip_str);
+    }
 
-        return nullptr;
+    bool is_unicast_mode() const {
+        c74::min::symbol tip = target_ip;
+        std::string tip_str = static_cast<std::string>(tip);
+        return !tip_str.empty() && !bbb::artnet::is_broadcast_ip(tip_str);
+    }
+
+    std::string get_target_ip_str() const {
+        c74::min::symbol tip = target_ip;
+        return static_cast<std::string>(tip);
     }
 
     void init_artnet() {
@@ -262,7 +261,9 @@ private:
             cerr << "bbb.artnet.controller: failed to create artnet node" << c74::min::endl;
             return;
         }
-        cout << "bbb.artnet.controller: bound to " << (ip ? ip : "0.0.0.0 (all interfaces)") << c74::min::endl;
+        cout << "bbb.artnet.controller: bound to " << (ip ? ip : "0.0.0.0 (all interfaces)")
+             << ", mode: " << (is_unicast_mode() ? "unicast" : "broadcast")
+             << c74::min::endl;
 
         artnet_set_node_type(m_managed_node->node(), ARTNET_SRV);
 
@@ -324,25 +325,36 @@ private:
     void send_all() {
         if(!m_managed_node || !m_managed_node->valid()) return;
 
-        artnet_node node = m_managed_node->node();
+        bool unicast = is_unicast_mode();
+        std::string tip = get_target_ip_str();
 
         if(blackout) {
             std::vector<uint8_t> zeros(512, 0);
             for(int i = 0; i < num_universes; ++i) {
-                artnet_raw_send_dmx(node,
-                    (universe + i) & 0xFF,
-                    512,
-                    zeros.data());
+                if(unicast) {
+                    m_managed_node->send_dmx_unicast(tip.c_str(),
+                        (universe + i) & 0xFF, 512, zeros.data());
+                } else {
+                    m_managed_node->send_dmx_broadcast(
+                        (universe + i) & 0xFF, 512, zeros.data());
+                }
             }
         } else {
             for(int i = 0; i < num_universes; ++i) {
                 int offset = i * 512;
                 int length = std::min(512, static_cast<int>(m_buffer.size()) - offset);
                 if(length > 0) {
-                    artnet_raw_send_dmx(node,
-                        (universe + i) & 0xFF,
-                        static_cast<int16_t>(length),
-                        m_buffer.data() + offset);
+                    if(unicast) {
+                        m_managed_node->send_dmx_unicast(tip.c_str(),
+                            (universe + i) & 0xFF,
+                            static_cast<int16_t>(length),
+                            m_buffer.data() + offset);
+                    } else {
+                        m_managed_node->send_dmx_broadcast(
+                            (universe + i) & 0xFF,
+                            static_cast<int16_t>(length),
+                            m_buffer.data() + offset);
+                    }
                 }
             }
         }

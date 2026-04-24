@@ -16,6 +16,8 @@
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <net/if.h>
+#include <sys/socket.h>
+#include <netinet/in.h>
 
 namespace bbb { namespace artnet {
 
@@ -55,6 +57,44 @@ public:
     }
 
     std::string effective_ip() const { return m_effective_ip; }
+
+    int send_dmx_broadcast(uint8_t universe, int16_t length, const uint8_t* data) {
+        if(!m_artnet_node) return -1;
+        return artnet_raw_send_dmx(m_artnet_node, universe, length, data);
+    }
+
+    int send_dmx_unicast(const char* target_ip, uint8_t universe, int16_t length, const uint8_t* data) {
+        if(length < 1 || length > 512) return -1;
+
+        uint8_t buf[18 + 512];
+        std::memcpy(buf, "Art-Net\0", 8);
+        buf[8] = 0x00; buf[9] = 0x50;
+        buf[10] = 0x00; buf[11] = 0x0E;
+        buf[12] = 0x00;
+        buf[13] = 0x00;
+        buf[14] = static_cast<uint8_t>(universe & 0xFF);
+        buf[15] = static_cast<uint8_t>((universe >> 8) & 0xFF);
+        buf[16] = static_cast<uint8_t>((length >> 8) & 0xFF);
+        buf[17] = static_cast<uint8_t>(length & 0xFF);
+        std::memcpy(buf + 18, data, length);
+
+        struct sockaddr_in addr;
+        std::memset(&addr, 0, sizeof(addr));
+        addr.sin_family = AF_INET;
+        addr.sin_port = htons(6454);
+        inet_pton(AF_INET, target_ip, &addr.sin_addr);
+
+        int fd = socket(AF_INET, SOCK_DGRAM, 0);
+        if(fd < 0) return -1;
+
+        int enable = 1;
+        setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
+
+        ssize_t result = sendto(fd, buf, 18 + length, 0,
+            reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
+        close(fd);
+        return result > 0 ? 0 : -1;
+    }
 
     managed_node(const char* ip)
         : m_artnet_node(nullptr)
@@ -256,7 +296,7 @@ private:
     }
 };
 
-inline const char* infer_bind_ip(const std::string& target_ip) {
+inline const char* resolve_bind_ip(const std::string& target_ip) {
     if(target_ip.empty() || target_ip == "0.0.0.0") return nullptr;
 
     struct in_addr target;
@@ -285,6 +325,29 @@ inline const char* infer_bind_ip(const std::string& target_ip) {
 
     freeifaddrs(ifa_list);
     return nullptr;
+}
+
+inline bool is_broadcast_ip(const std::string& target_ip) {
+    if(target_ip.empty()) return true;
+
+    struct in_addr target;
+    if(inet_pton(AF_INET, target_ip.c_str(), &target) != 1) return false;
+
+    struct ifaddrs* ifa_list = nullptr;
+    if(getifaddrs(&ifa_list) != 0) return false;
+
+    for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
+        if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
+        if(!ifa->ifa_broadaddr) continue;
+        auto* bcast = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_broadaddr);
+        if(bcast->sin_addr.s_addr == target.s_addr) {
+            freeifaddrs(ifa_list);
+            return true;
+        }
+    }
+
+    freeifaddrs(ifa_list);
+    return false;
 }
 
 }} // namespace bbb::artnet
