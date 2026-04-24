@@ -117,7 +117,9 @@ public:
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_output_timer{this,
         MIN_FUNCTION {
-            output.send(c74::min::k_sym_bang);
+            if(m_pending_bang.exchange(false)) {
+                output.send(c74::min::k_sym_bang);
+            }
             return {};
         }
     };
@@ -368,6 +370,7 @@ private:
 
         m_prev_buffer = m_buffer;
         m_dirty = false;
+        m_pending_bang = true;
         m_output_timer.delay(0);
     }
 
@@ -378,6 +381,7 @@ private:
     std::thread m_thread;
     std::atomic<bool> m_running;
     std::atomic<bool> m_dirty;
+    std::atomic<bool> m_pending_bang{false};
 
     std::shared_ptr<bbb::osc::asio_receiver> m_osc_receiver;
 
