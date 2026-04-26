@@ -153,13 +153,13 @@ private:
 
     const char* resolve_bind_ip() {
         c74::min::symbol bip = bind_ip;
-        m_bip_str = static_cast<std::string>(bip);
+        m_bip_str = static_cast<const char*>(bip);
         if(!m_bip_str.empty() && m_bip_str != "0.0.0.0") {
             return m_bip_str.c_str();
         }
 
         c74::min::symbol tip = target_ip;
-        std::string tip_str = static_cast<std::string>(tip);
+        std::string tip_str(static_cast<const char*>(tip));
         return bbb::artnet::resolve_bind_ip(tip_str);
     }
 
@@ -263,7 +263,7 @@ private:
         if(port <= 0) return;
 
         c74::min::symbol bind = osc_bind_ip;
-        std::string host = static_cast<std::string>(bind);
+        std::string host(static_cast<const char*>(bind));
         m_osc_receiver = bbb::osc::asio_receiver::get<bbb::osc::asio_receiver>(port, host);
         if(!m_osc_receiver) {
             cerr << "bbb.artnet.node: failed to setup OSC on port " << port << c74::min::endl;
