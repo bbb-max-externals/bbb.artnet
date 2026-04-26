@@ -78,7 +78,11 @@ public:
     };
 
     sacn_controller(const c74::min::atoms& args = {})
+#ifdef _WIN32
+        : m_fd{INVALID_SOCKET}
+#else
         : m_fd{-1}
+#endif
         , m_running{false}
         , m_dirty{false}
         , m_sequence{0}
@@ -273,7 +277,7 @@ private:
 
             uint16_t univ = static_cast<uint16_t>(universe + i);
             c74::min::symbol name_sym = source_name;
-            std::string name_str = static_cast<std::string>(name_sym);
+            std::string name_str = std::string(name_sym);
 
             sacn::init_packet(pkt, m_cid.data(), name_str.c_str(),
                 static_cast<uint8_t>(static_cast<int>(priority_attr)),
@@ -286,7 +290,7 @@ private:
 
             if(unicast) {
                 c74::min::symbol ip_sym = unicast_ip;
-                std::string ip_str = static_cast<std::string>(ip_sym);
+                std::string ip_str = std::string(ip_sym);
                 inet_pton(AF_INET, ip_str.c_str(), &addr.sin_addr);
             } else {
                 auto mc = sacn::universe_to_multicast(univ);

@@ -51,7 +51,11 @@ public:
     };
 
     sacn_node(const c74::min::atoms& args = {})
+#ifdef _WIN32
+        : m_fd{INVALID_SOCKET}
+#else
         : m_fd{-1}
+#endif
         , m_running{false}
     {
         bbb::net::ensure_init();

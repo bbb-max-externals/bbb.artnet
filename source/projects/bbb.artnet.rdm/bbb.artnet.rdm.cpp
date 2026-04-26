@@ -220,7 +220,7 @@ public:
             rdm_uid uid;
             if(!parse_uid_arg(args, uid)) return {};
             if(args.size() > 1) {
-                std::string lbl = static_cast<std::string>(c74::min::symbol(args[1]));
+                std::string lbl = std::string(c74::min::symbol(args[1]));
                 uint8_t len = static_cast<uint8_t>(std::min(lbl.size(), static_cast<size_t>(32)));
                 send_rdm(uid, CC_SET, PID_DEVICE_LABEL,
                     reinterpret_cast<const uint8_t*>(lbl.c_str()), len);
@@ -314,25 +314,25 @@ private:
 
     const char* resolve_bind_ip() {
         c74::min::symbol bip = bind_ip;
-        m_bip_str = static_cast<std::string>(bip);
+        m_bip_str = std::string(bip);
         if(!m_bip_str.empty() && m_bip_str != "0.0.0.0") {
             return m_bip_str.c_str();
         }
 
         c74::min::symbol tip = target_ip;
-        std::string tip_str = static_cast<std::string>(tip);
+        std::string tip_str = std::string(tip);
         return bbb::artnet::resolve_bind_ip(tip_str);
     }
 
     bool is_unicast_mode() const {
         c74::min::symbol tip = target_ip;
-        std::string tip_str = static_cast<std::string>(tip);
+        std::string tip_str = std::string(tip);
         return !tip_str.empty() && !bbb::artnet::is_broadcast_ip(tip_str);
     }
 
     std::string get_target_ip_str() const {
         c74::min::symbol tip = target_ip;
-        return static_cast<std::string>(tip);
+        return std::string(tip);
     }
 
     bool parse_uid_arg(const c74::min::atoms& args, rdm_uid& uid) {
@@ -341,7 +341,7 @@ private:
             return false;
         }
         c74::min::symbol sym = args[0];
-        std::string s = static_cast<std::string>(sym);
+        std::string s = std::string(sym);
         if(!parse_uid(s, uid)) {
             std::string msg = "invalid UID: " + s;
             status_out.send({c74::min::atom("error"), c74::min::atom(msg.c_str())});
@@ -391,7 +391,7 @@ private:
         rdm_uid src;
         {
             c74::min::symbol sym = source_uid;
-            std::string s = static_cast<std::string>(sym);
+            std::string s = std::string(sym);
             if(!parse_uid(s, src)) {
                 std::memset(src.b, 0, 6);
             }

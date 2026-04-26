@@ -155,9 +155,10 @@ Receives DMX data via sACN (E1.31) protocol.
 
 ### Prerequisites
 
-- macOS
+- macOS or Windows
 - CMake 3.19+
-- Xcode CLI tools
+- macOS: Xcode CLI tools
+- Windows: Visual Studio 2022
 
 ### Setup
 
@@ -173,7 +174,7 @@ git clone https://github.com/2bbb/asio.git deps/osc/third-party/asio
 ```bash
 mkdir build && cd build
 cmake ..
-cmake --build .
+cmake --build . --config Release
 ```
 
 Built externals are output to `externals/`.
@@ -191,10 +192,14 @@ bbb.artnet/
 │   ├── bbb/              # shared headers (artnet_node_manager, sacn_packet)
 │   └── projects/         # external source per object
 ├── help/                 # help files for Max
-├── externals/            # build output (.mxo)
+├── externals/            # build output (.mxo / .mxe64)
 └── scripts/              # help file generator
 ```
 
+## Acknowledgments
+
+This project was inspired by [imp.dmx](https://github.com/niboren/imp.dmx) by David Butler. His work on DMX over Art-Net for Max/MSP provided valuable reference during development.
+
 ## License
 
-TODO
+MIT License. See [LICENSE](LICENSE) for details.
