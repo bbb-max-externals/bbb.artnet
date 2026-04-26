@@ -198,7 +198,7 @@ bbb.artnet/
 
 ## Acknowledgments
 
-This project was inspired by [imp.dmx](https://github.com/niboren/imp.dmx) by David Butler. His work on DMX over Art-Net for Max/MSP provided valuable reference during development.
+This project was inspired by imp.dmx by David Butler. His work on DMX over Art-Net for Max/MSP provided valuable reference during development.
 
 ## License
 
