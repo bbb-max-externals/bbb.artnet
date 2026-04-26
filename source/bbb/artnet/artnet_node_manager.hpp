@@ -1,8 +1,16 @@
 #pragma once
+//
+// bbb/artnet/artnet_node_manager.hpp
+// Clean-room Art-Net node manager using asio (no libartnet dependency)
+//
+// Based on the Art-Net 4 public specification.
+// This is NOT derived from libartnet or any LGPL-licensed code.
+//
 
-#include <artnet/artnet.h>
-#include <artnet/packets.h>
+#include <bbb/artnet/protocol.hpp>
 #include <bbb/net_compat.hpp>
+
+#include <asio.hpp>
 #include <cstring>
 #include <cstdio>
 #include <string>
@@ -14,6 +22,7 @@
 #include <thread>
 #include <atomic>
 #include <memory>
+#include <array>
 
 namespace bbb { namespace artnet {
 
@@ -29,8 +38,8 @@ struct callback_entry {
     void* owner;
     std::function<void(const uint8_t* data, int length, int universe_addr)> dmx_fn;
     std::function<void(int address, uint8_t* rdm, int length)> rdm_fn;
-    std::function<void(artnet_packet_t* pkt)> tod_fn;
-    std::function<void(artnet_packet_t* pkt)> poll_reply_fn;
+    std::function<void(const protocol::tod_data& tod)> tod_fn;
+    std::function<void(const protocol::poll_reply_data& reply)> poll_reply_fn;
 };
 
 class managed_node {
@@ -54,99 +63,108 @@ public:
 
     std::string effective_ip() const { return m_effective_ip; }
 
-    int send_dmx_broadcast(uint8_t universe, int16_t length, const uint8_t* data) {
-        if(!m_artnet_node) return -1;
-        return artnet_raw_send_dmx(m_artnet_node, universe, length, data);
+    int send_dmx_broadcast(uint16_t universe_16, int16_t length, const uint8_t* data) {
+        if(!m_socket.is_open()) return -1;
+        auto pkt = protocol::build_dmx_packet(m_sequence++, 0, universe_16, data, static_cast<uint16_t>(length));
+        asio::ip::udp::endpoint broadcast_ep(
+            asio::ip::address_v4::broadcast(),
+            protocol::ARTNET_PORT
+        );
+        asio::error_code ec;
+        m_socket.send_to(asio::buffer(pkt), broadcast_ep, 0, ec);
+        return ec ? -1 : 0;
     }
 
-    int send_dmx_unicast(const char* target_ip, uint8_t universe, int16_t length, const uint8_t* data) {
+    int send_dmx_unicast(const char* target_ip, uint16_t universe_16, int16_t length, const uint8_t* data) {
+        if(!m_socket.is_open()) return -1;
         if(length < 1 || length > 512) return -1;
-
-        bbb::net::ensure_init();
-
-        uint8_t buf[18 + 512];
-        std::memcpy(buf, "Art-Net\0", 8);
-        buf[8] = 0x00; buf[9] = 0x50;
-        buf[10] = 0x00; buf[11] = 0x0E;
-        buf[12] = 0x00;
-        buf[13] = 0x00;
-        buf[14] = static_cast<uint8_t>(universe & 0xFF);
-        buf[15] = static_cast<uint8_t>((universe >> 8) & 0xFF);
-        buf[16] = static_cast<uint8_t>((length >> 8) & 0xFF);
-        buf[17] = static_cast<uint8_t>(length & 0xFF);
-        std::memcpy(buf + 18, data, length);
-
-        struct sockaddr_in addr;
-        std::memset(&addr, 0, sizeof(addr));
-        addr.sin_family = AF_INET;
-        addr.sin_port = htons(6454);
-        if(inet_pton(AF_INET, target_ip, &addr.sin_addr) != 1) return -1;
-
-        if(m_unicast_fd < 0) {
-            m_unicast_fd = socket(AF_INET, SOCK_DGRAM, 0);
-            if(!bbb::net::socket_valid(m_unicast_fd)) return -1;
-            int enable = 1;
-            setsockopt(m_unicast_fd, SOL_SOCKET, SO_BROADCAST,
-                reinterpret_cast<const char*>(&enable), sizeof(enable));
+        auto pkt = protocol::build_dmx_packet(m_sequence++, 0, universe_16, data, static_cast<uint16_t>(length));
+        try {
+            asio::ip::udp::endpoint target_ep(
+                asio::ip::make_address(target_ip),
+                protocol::ARTNET_PORT
+            );
+            asio::error_code ec;
+            m_socket.send_to(asio::buffer(pkt), target_ep, 0, ec);
+            return ec ? -1 : 0;
+        } catch(...) {
+            return -1;
         }
+    }
 
-        auto result = sendto(m_unicast_fd, reinterpret_cast<const char*>(buf), 18 + length, 0,
-            reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
-        return result > 0 ? 0 : -1;
+    int send_tod_request(uint8_t net) {
+        if(!m_socket.is_open()) return -1;
+        auto pkt = protocol::build_tod_request(net);
+        asio::ip::udp::endpoint broadcast_ep(
+            asio::ip::address_v4::broadcast(),
+            protocol::ARTNET_PORT
+        );
+        asio::error_code ec;
+        m_socket.send_to(asio::buffer(pkt), broadcast_ep, 0, ec);
+        return ec ? -1 : 0;
+    }
+
+    int send_rdm(uint8_t net, uint8_t address, const uint8_t* data, int length) {
+        if(!m_socket.is_open()) return -1;
+        auto pkt = protocol::build_rdm_packet(net, address, 0x00, data, static_cast<uint16_t>(length));
+        asio::ip::udp::endpoint broadcast_ep(
+            asio::ip::address_v4::broadcast(),
+            protocol::ARTNET_PORT
+        );
+        asio::error_code ec;
+        m_socket.send_to(asio::buffer(pkt), broadcast_ep, 0, ec);
+        return ec ? -1 : 0;
     }
 
     managed_node(const char* ip)
-        : m_artnet_node(nullptr)
+        : m_io()
+        , m_socket(m_io)
         , m_running(false)
         , m_ref_count(0)
-        , m_unicast_fd(-1)
+        , m_sequence(0)
     {
-        m_artnet_node = artnet_new(ip, 0);
-        if(!m_artnet_node && ip) {
-            m_artnet_node = artnet_new(nullptr, 0);
-        }
-        if(!m_artnet_node) return;
-
+        bbb::net::ensure_init();
         m_effective_ip = detect_local_ip(ip);
 
-        artnet_set_handler(m_artnet_node, ARTNET_DMX_HANDLER,
-            raw_dmx_callback, this);
-        artnet_set_handler(m_artnet_node, ARTNET_RDM_HANDLER,
-            raw_rdm_callback, this);
-        artnet_set_handler(m_artnet_node, ARTNET_TOD_DATA_HANDLER,
-            raw_tod_callback, this);
-        artnet_set_handler(m_artnet_node, ARTNET_REPLY_HANDLER,
-            raw_poll_reply_callback, this);
+        try {
+            std::string bind_addr = "0.0.0.0";
+            if(!m_effective_ip.empty()) {
+                bind_addr = m_effective_ip;
+            }
+
+            asio::ip::udp::endpoint local_ep(
+                asio::ip::make_address(bind_addr),
+                protocol::ARTNET_PORT
+            );
+            m_socket.open(asio::ip::udp::v4());
+            m_socket.set_option(asio::ip::udp::socket::reuse_address(true));
+            m_socket.bind(local_ep);
+            m_socket.set_option(asio::socket_base::broadcast(true));
+            m_socket.non_blocking(true);
+        } catch(std::exception& e) {
+            std::fprintf(stderr, "bbb.artnet: bind failed: %s\n", e.what());
+        }
     }
 
     ~managed_node() {
         m_running = false;
-        if(m_artnet_node) {
-            artnet_stop(m_artnet_node);
+        if(m_recv_thread.joinable()) {
+            m_recv_thread.join();
         }
-        if(m_read_thread.joinable()) {
-            m_read_thread.join();
-        }
-        if(m_artnet_node) {
-            artnet_destroy(m_artnet_node);
-        }
-        if(m_unicast_fd >= 0) {
-            bbb::net::close_socket(m_unicast_fd);
+        if(m_socket.is_open()) {
+            asio::error_code ec;
+            m_socket.close(ec);
         }
     }
 
-    bool valid() const { return m_artnet_node != nullptr; }
-
-    ::artnet_node node() { return m_artnet_node; }
+    bool valid() const { return m_socket.is_open(); }
 
     void retain() {
         std::lock_guard<std::mutex> lock(m_mutex);
         ++m_ref_count;
-        if(m_ref_count == 1 && m_artnet_node) {
-            if(artnet_start(m_artnet_node) == ARTNET_EOK) {
-                m_running = true;
-                m_read_thread = std::thread([this]() { read_loop(); });
-            }
+        if(m_ref_count == 1 && valid()) {
+            m_running = true;
+            m_recv_thread = std::thread([this]() { recv_loop(); });
         }
     }
 
@@ -157,11 +175,8 @@ public:
             --m_ref_count;
             if(m_ref_count <= 0) {
                 m_running = false;
-                if(m_artnet_node) {
-                    artnet_stop(m_artnet_node);
-                }
-                if(m_read_thread.joinable()) {
-                    local_thread = std::move(m_read_thread);
+                if(m_recv_thread.joinable()) {
+                    local_thread = std::move(m_recv_thread);
                 }
             }
         }
@@ -184,17 +199,65 @@ public:
     }
 
 private:
-    void read_loop() {
+    void recv_loop() {
+        std::array<uint8_t, 65536> buf;
         while(m_running) {
-            artnet_read(m_artnet_node, 100);
+            asio::error_code ec;
+            asio::ip::udp::endpoint remote;
+            std::size_t len = m_socket.receive_from(asio::buffer(buf), remote, 0, ec);
+            if(!ec && len > 10) {
+                dispatch_packet(buf.data(), len);
+            } else if(ec) {
+                std::this_thread::sleep_for(std::chrono::microseconds(100));
+            }
         }
     }
 
-    void dispatch_dmx(int port, const uint8_t* data, int length) {
+    void dispatch_packet(const uint8_t* data, size_t len) {
+        if(!protocol::is_artnet_packet(data, len)) return;
+        uint16_t opcode = protocol::read_opcode(data);
+
+        switch(opcode) {
+            case protocol::OP_OUTPUT: {
+                protocol::dmx_data dmx;
+                if(protocol::parse_dmx(data, len, dmx)) {
+                    dispatch_dmx(dmx.universe, dmx.data, dmx.length);
+                }
+                break;
+            }
+            case protocol::OP_RDM: {
+                protocol::rdm_data rdm;
+                if(protocol::parse_rdm(data, len, rdm)) {
+                    dispatch_rdm(rdm.address,
+                        const_cast<uint8_t*>(rdm.data),
+                        static_cast<int>(rdm.length));
+                }
+                break;
+            }
+            case protocol::OP_TOD_DATA: {
+                protocol::tod_data tod;
+                if(protocol::parse_tod_data(data, len, tod)) {
+                    dispatch_tod(tod);
+                }
+                break;
+            }
+            case protocol::OP_POLL_REPLY: {
+                protocol::poll_reply_data reply;
+                if(protocol::parse_poll_reply(data, len, reply)) {
+                    dispatch_poll_reply(reply);
+                }
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
+    void dispatch_dmx(int universe, const uint8_t* data, int length) {
         std::lock_guard<std::mutex> lock(m_mutex);
         for(auto& cb : m_callbacks) {
             if(cb.type == callback_type::dmx && cb.dmx_fn) {
-                cb.dmx_fn(data, length, port);
+                cb.dmx_fn(data, length, universe);
             }
         }
     }
@@ -208,63 +271,23 @@ private:
         }
     }
 
-    void dispatch_tod(artnet_packet_t* pkt) {
+    void dispatch_tod(const protocol::tod_data& tod) {
         std::lock_guard<std::mutex> lock(m_mutex);
         for(auto& cb : m_callbacks) {
             if(cb.type == callback_type::tod_data && cb.tod_fn) {
-                cb.tod_fn(pkt);
+                cb.tod_fn(tod);
             }
         }
     }
 
-    void dispatch_poll_reply(artnet_packet_t* pkt) {
+    void dispatch_poll_reply(const protocol::poll_reply_data& reply) {
         std::lock_guard<std::mutex> lock(m_mutex);
         for(auto& cb : m_callbacks) {
             if(cb.type == callback_type::poll_reply && cb.poll_reply_fn) {
-                cb.poll_reply_fn(pkt);
+                cb.poll_reply_fn(reply);
             }
         }
     }
-
-    static int raw_dmx_callback(artnet_node /*n*/, void* pp, void* data) {
-        auto* self = static_cast<managed_node*>(data);
-        auto* packet = static_cast<artnet_packet_t*>(pp);
-        int port = packet->data.admx.universe;
-        int length = (packet->data.admx.lengthHi << 8) | packet->data.admx.length;
-        self->dispatch_dmx(port, packet->data.admx.data, length);
-        return 0;
-    }
-
-    static int raw_rdm_callback(artnet_node /*n*/, void* pp, void* data) {
-        auto* self = static_cast<managed_node*>(data);
-        auto* packet = static_cast<artnet_packet_t*>(pp);
-        self->dispatch_rdm(packet->data.rdm.address,
-            packet->data.rdm.data, ARTNET_MAX_RDM_DATA);
-        return 0;
-    }
-
-    static int raw_tod_callback(artnet_node /*n*/, void* pp, void* data) {
-        auto* self = static_cast<managed_node*>(data);
-        auto* packet = static_cast<artnet_packet_t*>(pp);
-        self->dispatch_tod(packet);
-        return 0;
-    }
-
-    static int raw_poll_reply_callback(artnet_node /*n*/, void* pp, void* data) {
-        auto* self = static_cast<managed_node*>(data);
-        auto* packet = static_cast<artnet_packet_t*>(pp);
-        self->dispatch_poll_reply(packet);
-        return 0;
-    }
-
-    ::artnet_node m_artnet_node;
-    std::thread m_read_thread;
-    std::atomic<bool> m_running;
-    int m_ref_count;
-    int m_unicast_fd;
-    std::mutex m_mutex;
-    std::vector<callback_entry> m_callbacks;
-    std::string m_effective_ip;
 
     static std::string detect_local_ip(const char* preferred) {
         auto adapters = bbb::net::get_adapters();
@@ -295,6 +318,16 @@ private:
 
         return preferred ? preferred : "";
     }
+
+    asio::io_context m_io;
+    asio::ip::udp::socket m_socket;
+    std::thread m_recv_thread;
+    std::atomic<bool> m_running;
+    int m_ref_count;
+    uint8_t m_sequence;
+    std::mutex m_mutex;
+    std::vector<callback_entry> m_callbacks;
+    std::string m_effective_ip;
 };
 
 inline const char* resolve_bind_ip(const std::string& target_ip) {
@@ -308,7 +341,6 @@ inline const char* resolve_bind_ip(const std::string& target_ip) {
     static char buf[INET_ADDRSTRLEN];
     for(const auto& a : adapters) {
         if(!a.is_up) continue;
-
         if((a.addr & a.netmask) == (target.s_addr & a.netmask)) {
             struct in_addr tmp; tmp.s_addr = a.addr;
             inet_ntop(AF_INET, &tmp, buf, sizeof(buf));
@@ -329,12 +361,9 @@ inline bool is_broadcast_ip(const std::string& target_ip) {
     if(t == 0xFFFFFFFF || t == 0) return true;
 
     auto adapters = bbb::net::get_adapters();
-
     for(const auto& a : adapters) {
         if(a.is_loopback) continue;
-        if(a.broadcast == target.s_addr) {
-            return true;
-        }
+        if(a.broadcast == target.s_addr) return true;
     }
 
     return false;

@@ -1,5 +1,4 @@
 #include "c74_min.h"
-#include <artnet/artnet.h>
 #include <bbb/artnet/artnet_node_manager.hpp>
 #include <bbb/version.h>
 #pragma push_macro("NIL")
@@ -293,15 +292,6 @@ private:
              << ", mode: " << (is_unicast_mode() ? "unicast" : "broadcast")
              << c74::min::endl;
 
-        artnet_set_node_type(m_managed_node->node(), ARTNET_RAW);
-
-        for(int i = 0; i < num_universes; ++i) {
-            artnet_set_port_type(m_managed_node->node(), i, ARTNET_ENABLE_OUTPUT, ARTNET_PORT_DMX);
-            artnet_set_port_addr(m_managed_node->node(), i, ARTNET_OUTPUT_PORT,
-                (universe + i) & 0x0F);
-        }
-        artnet_set_subnet_addr(m_managed_node->node(), subnet);
-
         m_managed_node->retain();
         start_forced_timer();
     }
@@ -349,12 +339,13 @@ private:
         if(blackout) {
             std::vector<uint8_t> zeros(512, 0);
             for(int i = 0; i < num_universes; ++i) {
+                uint16_t port_addr = bbb::artnet::protocol::make_port_address(net, subnet, (universe + i) & 0x0F);
                 if(unicast) {
                     m_managed_node->send_dmx_unicast(tip.c_str(),
-                        (universe + i) & 0xFF, 512, zeros.data());
+                        port_addr, 512, zeros.data());
                 } else {
                     m_managed_node->send_dmx_broadcast(
-                        (universe + i) & 0xFF, 512, zeros.data());
+                        port_addr, 512, zeros.data());
                 }
             }
         } else {
@@ -362,14 +353,15 @@ private:
                 int offset = i * 512;
                 int length = std::min(512, static_cast<int>(m_buffer.size()) - offset);
                 if(length > 0) {
+                    uint16_t port_addr = bbb::artnet::protocol::make_port_address(net, subnet, (universe + i) & 0x0F);
                     if(unicast) {
                         m_managed_node->send_dmx_unicast(tip.c_str(),
-                            (universe + i) & 0xFF,
+                            port_addr,
                             static_cast<int16_t>(length),
                             m_buffer.data() + offset);
                     } else {
                         m_managed_node->send_dmx_broadcast(
-                            (universe + i) & 0xFF,
+                            port_addr,
                             static_cast<int16_t>(length),
                             m_buffer.data() + offset);
                     }

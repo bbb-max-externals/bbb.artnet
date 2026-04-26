@@ -4,9 +4,6 @@
 [submodule "deps/osc"]
 	path = deps/osc
 	url = https://github.com/2bbb/bbb-osc.git
-[submodule "deps/libartnet"]
-	path = deps/libartnet
-	url = git@github.com:2bbb/libartnet.git
 [submodule ".agents/skills/max-external"]
 	path = .agents/skills/max-external
 	url = git@github.com:2bbb/max-external.git

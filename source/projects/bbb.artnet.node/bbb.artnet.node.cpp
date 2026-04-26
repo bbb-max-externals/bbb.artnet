@@ -1,5 +1,4 @@
 #include "c74_min.h"
-#include <artnet/artnet.h>
 #include <bbb/artnet/artnet_node_manager.hpp>
 #include <bbb/version.h>
 #pragma push_macro("NIL")
@@ -170,17 +169,6 @@ private:
             cerr << "bbb.artnet.node: failed to create artnet node" << c74::min::endl;
             return;
         }
-
-        artnet_set_node_type(m_managed_node->node(), ARTNET_NODE);
-        artnet_set_short_name(m_managed_node->node(), "bbb.artnet.node");
-        artnet_set_long_name(m_managed_node->node(), "bbb.artnet.node - Art-Net DMX Receiver");
-
-        for(int i = 0; i < num_universes; ++i) {
-            artnet_set_port_type(m_managed_node->node(), i, ARTNET_ENABLE_INPUT, ARTNET_PORT_DMX);
-            artnet_set_port_addr(m_managed_node->node(), i, ARTNET_INPUT_PORT,
-                (universe + i) & 0x0F);
-        }
-        artnet_set_subnet_addr(m_managed_node->node(), subnet);
 
         bbb::artnet::callback_entry cb;
         cb.type = bbb::artnet::callback_type::dmx;
