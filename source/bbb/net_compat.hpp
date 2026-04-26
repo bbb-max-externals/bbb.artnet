@@ -92,9 +92,13 @@ struct adapter_info {
                 info.is_up = true;
                 info.is_loopback = is_loopback;
 
-                info.netmask = (ua->OnLinkPrefixLength <= 32)
-                    ? htonl(~((1ULL << (32 - ua->OnLinkPrefixLength)) - 1))
-                    : 0;
+                if(ua->OnLinkPrefixLength == 0) {
+                    info.netmask = 0;
+                } else if(ua->OnLinkPrefixLength <= 32) {
+                    info.netmask = htonl(~((1ULL << (32 - ua->OnLinkPrefixLength)) - 1));
+                } else {
+                    info.netmask = 0;
+                }
                 info.broadcast = info.addr | ~info.netmask;
 
                 result.push_back(info);
