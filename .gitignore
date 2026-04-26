@@ -1,5 +1,7 @@
 reference/
 
+docs/*.maxref.xml
+
 build/
 externals/
 source/bbb/version.h
