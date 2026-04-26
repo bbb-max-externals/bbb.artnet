@@ -2,16 +2,13 @@
 #include <bbb/sacn/sacn_packet.h>
 #include <bbb/version.h>
 
+#include <bbb/net_compat.hpp>
+
 #include <cstring>
 #include <vector>
 #include <thread>
 #include <mutex>
 #include <atomic>
-
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
 
 class sacn_node : public c74::min::object<sacn_node> {
 public:
@@ -57,6 +54,7 @@ public:
         : m_fd{-1}
         , m_running{false}
     {
+        bbb::net::ensure_init();
         m_buffer.resize(512 * num_universes, 0);
         m_prev_buffer.resize(512 * num_universes, 0);
         m_received_universes.resize(num_universes, false);
@@ -69,9 +67,9 @@ public:
         if(m_read_thread.joinable()) {
             m_read_thread.join();
         }
-        if(m_fd >= 0) {
+        if(bbb::net::socket_valid(m_fd)) {
             leave_multicast_groups();
-            close(m_fd);
+            bbb::net::close_socket(m_fd);
         }
     }
 
@@ -93,13 +91,14 @@ public:
 private:
     void init_socket() {
         m_fd = socket(AF_INET, SOCK_DGRAM, 0);
-        if(m_fd < 0) {
+        if(!bbb::net::socket_valid(m_fd)) {
             cerr << "bbb.sacn.node: failed to create socket" << c74::min::endl;
             return;
         }
 
         int reuse = 1;
-        setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
+        setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR,
+            reinterpret_cast<const char*>(&reuse), sizeof(reuse));
 #ifdef SO_REUSEPORT
         setsockopt(m_fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse));
 #endif
@@ -134,7 +133,8 @@ private:
             std::snprintf(mc_str, sizeof(mc_str), "%d.%d.%d.%d", mc.a, mc.b, mc.c, mc.d);
             inet_pton(AF_INET, mc_str, &mreq.imr_multiaddr);
             mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-            setsockopt(m_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP, &mreq, sizeof(mreq));
+            setsockopt(m_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
+                reinterpret_cast<const char*>(&mreq), sizeof(mreq));
         }
     }
 
@@ -149,14 +149,15 @@ private:
             std::snprintf(mc_str, sizeof(mc_str), "%d.%d.%d.%d", mc.a, mc.b, mc.c, mc.d);
             inet_pton(AF_INET, mc_str, &mreq.imr_multiaddr);
             mreq.imr_interface.s_addr = htonl(INADDR_ANY);
-            setsockopt(m_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP, &mreq, sizeof(mreq));
+            setsockopt(m_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP,
+                reinterpret_cast<const char*>(&mreq), sizeof(mreq));
         }
     }
 
     void read_loop() {
         uint8_t buf[65536];
         while(m_running) {
-            ssize_t len = recvfrom(m_fd, buf, sizeof(buf), 0, nullptr, nullptr);
+            bbb::net::recv_len_t len = recvfrom(m_fd, reinterpret_cast<char*>(buf), sizeof(buf), 0, nullptr, nullptr);
             if(len <= 0) continue;
             if(static_cast<size_t>(len) < 126) continue;
 
@@ -239,7 +240,11 @@ private:
         m_prev_buffer = m_buffer;
     }
 
+#ifdef _WIN32
+    SOCKET m_fd;
+#else
     int m_fd;
+#endif
     std::vector<uint8_t> m_buffer;
     std::vector<uint8_t> m_prev_buffer;
     std::vector<bool> m_received_universes;

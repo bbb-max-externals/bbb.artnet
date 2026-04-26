@@ -2,6 +2,7 @@
 
 #include <artnet/artnet.h>
 #include <artnet/packets.h>
+#include <bbb/net_compat.hpp>
 #include <cstring>
 #include <cstdio>
 #include <string>
@@ -13,11 +14,6 @@
 #include <thread>
 #include <atomic>
 #include <memory>
-#include <arpa/inet.h>
-#include <ifaddrs.h>
-#include <net/if.h>
-#include <sys/socket.h>
-#include <netinet/in.h>
 
 namespace bbb { namespace artnet {
 
@@ -66,6 +62,8 @@ public:
     int send_dmx_unicast(const char* target_ip, uint8_t universe, int16_t length, const uint8_t* data) {
         if(length < 1 || length > 512) return -1;
 
+        bbb::net::ensure_init();
+
         uint8_t buf[18 + 512];
         std::memcpy(buf, "Art-Net\0", 8);
         buf[8] = 0x00; buf[9] = 0x50;
@@ -86,12 +84,13 @@ public:
 
         if(m_unicast_fd < 0) {
             m_unicast_fd = socket(AF_INET, SOCK_DGRAM, 0);
-            if(m_unicast_fd < 0) return -1;
+            if(!bbb::net::socket_valid(m_unicast_fd)) return -1;
             int enable = 1;
-            setsockopt(m_unicast_fd, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
+            setsockopt(m_unicast_fd, SOL_SOCKET, SO_BROADCAST,
+                reinterpret_cast<const char*>(&enable), sizeof(enable));
         }
 
-        ssize_t result = sendto(m_unicast_fd, buf, 18 + length, 0,
+        auto result = sendto(m_unicast_fd, reinterpret_cast<const char*>(buf), 18 + length, 0,
             reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
         return result > 0 ? 0 : -1;
     }
@@ -132,7 +131,7 @@ public:
             artnet_destroy(m_artnet_node);
         }
         if(m_unicast_fd >= 0) {
-            close(m_unicast_fd);
+            bbb::net::close_socket(m_unicast_fd);
         }
     }
 
@@ -268,8 +267,7 @@ private:
     std::string m_effective_ip;
 
     static std::string detect_local_ip(const char* preferred) {
-        struct ifaddrs* ifa_list = nullptr;
-        if(getifaddrs(&ifa_list) != 0) return preferred ? preferred : "";
+        auto adapters = bbb::net::get_adapters();
 
         struct in_addr wanted;
         bool has_wanted = preferred && inet_pton(AF_INET, preferred, &wanted) == 1;
@@ -277,29 +275,24 @@ private:
         char buf[INET_ADDRSTRLEN];
 
         if(has_wanted) {
-            for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
-                if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
-                if(!(ifa->ifa_flags & IFF_UP)) continue;
-                auto* sin = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
-                if(sin->sin_addr.s_addr == wanted.s_addr) {
-                    inet_ntop(AF_INET, &sin->sin_addr, buf, sizeof(buf));
-                    freeifaddrs(ifa_list);
+            for(const auto& a : adapters) {
+                if(!a.is_up) continue;
+                if(a.addr == wanted.s_addr) {
+                    struct in_addr tmp; tmp.s_addr = a.addr;
+                    inet_ntop(AF_INET, &tmp, buf, sizeof(buf));
                     return std::string(buf);
                 }
             }
         }
 
-        for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
-            if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
-            if(!(ifa->ifa_flags & IFF_UP)) continue;
-            if(ifa->ifa_flags & IFF_LOOPBACK) continue;
-            auto* sin = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
-            inet_ntop(AF_INET, &sin->sin_addr, buf, sizeof(buf));
-            freeifaddrs(ifa_list);
+        for(const auto& a : adapters) {
+            if(!a.is_up) continue;
+            if(a.is_loopback) continue;
+            struct in_addr tmp; tmp.s_addr = a.addr;
+            inet_ntop(AF_INET, &tmp, buf, sizeof(buf));
             return std::string(buf);
         }
 
-        freeifaddrs(ifa_list);
         return preferred ? preferred : "";
     }
 };
@@ -310,27 +303,19 @@ inline const char* resolve_bind_ip(const std::string& target_ip) {
     struct in_addr target;
     if(inet_pton(AF_INET, target_ip.c_str(), &target) != 1) return nullptr;
 
-    struct ifaddrs* ifa_list = nullptr;
-    if(getifaddrs(&ifa_list) != 0) return nullptr;
+    auto adapters = bbb::net::get_adapters();
 
     static char buf[INET_ADDRSTRLEN];
-    for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
-        if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
-        if(!(ifa->ifa_flags & IFF_UP)) continue;
-        if(!ifa->ifa_netmask) continue;
+    for(const auto& a : adapters) {
+        if(!a.is_up) continue;
 
-        auto* sin = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_addr);
-        auto* mask = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_netmask);
-
-        if((sin->sin_addr.s_addr & mask->sin_addr.s_addr) ==
-           (target.s_addr & mask->sin_addr.s_addr)) {
-            inet_ntop(AF_INET, &sin->sin_addr, buf, sizeof(buf));
-            freeifaddrs(ifa_list);
+        if((a.addr & a.netmask) == (target.s_addr & a.netmask)) {
+            struct in_addr tmp; tmp.s_addr = a.addr;
+            inet_ntop(AF_INET, &tmp, buf, sizeof(buf));
             return buf;
         }
     }
 
-    freeifaddrs(ifa_list);
     return nullptr;
 }
 
@@ -343,21 +328,15 @@ inline bool is_broadcast_ip(const std::string& target_ip) {
     uint32_t t = ntohl(target.s_addr);
     if(t == 0xFFFFFFFF || t == 0) return true;
 
-    struct ifaddrs* ifa_list = nullptr;
-    if(getifaddrs(&ifa_list) != 0) return false;
+    auto adapters = bbb::net::get_adapters();
 
-    for(auto* ifa = ifa_list; ifa; ifa = ifa->ifa_next) {
-        if(!ifa->ifa_addr || ifa->ifa_addr->sa_family != AF_INET) continue;
-        if(ifa->ifa_flags & IFF_LOOPBACK) continue;
-        if(!ifa->ifa_broadaddr) continue;
-        auto* bcast = reinterpret_cast<struct sockaddr_in*>(ifa->ifa_broadaddr);
-        if(bcast->sin_addr.s_addr == target.s_addr) {
-            freeifaddrs(ifa_list);
+    for(const auto& a : adapters) {
+        if(a.is_loopback) continue;
+        if(a.broadcast == target.s_addr) {
             return true;
         }
     }
 
-    freeifaddrs(ifa_list);
     return false;
 }
 

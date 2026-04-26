@@ -2,17 +2,14 @@
 #include <bbb/sacn/sacn_packet.h>
 #include <bbb/version.h>
 
+#include <bbb/net_compat.hpp>
+
 #include <cstring>
 #include <vector>
 #include <thread>
 #include <mutex>
 #include <atomic>
 #include <chrono>
-
-#include <sys/socket.h>
-#include <netinet/in.h>
-#include <arpa/inet.h>
-#include <unistd.h>
 
 class sacn_controller : public c74::min::object<sacn_controller> {
 public:
@@ -86,6 +83,7 @@ public:
         , m_dirty{false}
         , m_sequence{0}
     {
+        bbb::net::ensure_init();
         m_buffer.resize(512 * num_universes, 0);
         m_prev_buffer.resize(512 * num_universes, 0);
         m_cid = sacn::generate_cid();
@@ -97,8 +95,8 @@ public:
         if(m_thread.joinable()) {
             m_thread.join();
         }
-        if(m_fd >= 0) {
-            close(m_fd);
+        if(bbb::net::socket_valid(m_fd)) {
+            bbb::net::close_socket(m_fd);
         }
     }
 
@@ -193,13 +191,14 @@ public:
 private:
     void init_socket() {
         m_fd = socket(AF_INET, SOCK_DGRAM, 0);
-        if(m_fd < 0) {
+        if(!bbb::net::socket_valid(m_fd)) {
             cerr << "bbb.sacn.controller: failed to create socket" << c74::min::endl;
             return;
         }
 
         int ttl = 4;
-        setsockopt(m_fd, IPPROTO_IP, IP_MULTICAST_TTL, &ttl, sizeof(ttl));
+        setsockopt(m_fd, IPPROTO_IP, IP_MULTICAST_TTL,
+            reinterpret_cast<const char*>(&ttl), sizeof(ttl));
 
         char loop = 1;
         setsockopt(m_fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
@@ -252,7 +251,7 @@ private:
     }
 
     void send_all() {
-        if(m_fd < 0) return;
+        if(!bbb::net::socket_valid(m_fd)) return;
 
         for(int i = 0; i < num_universes; ++i) {
             int offset = i * 512;
@@ -297,7 +296,7 @@ private:
             }
 
             int pkt_size = 126 + 1 + length;
-            sendto(m_fd, &pkt, pkt_size, 0,
+            sendto(m_fd, reinterpret_cast<const char*>(&pkt), pkt_size, 0,
                 reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
         }
 
@@ -306,7 +305,11 @@ private:
         output.send(c74::min::k_sym_bang);
     }
 
+#ifdef _WIN32
+    SOCKET m_fd;
+#else
     int m_fd;
+#endif
     std::vector<uint8_t> m_buffer;
     std::vector<uint8_t> m_prev_buffer;
     std::mutex m_mutex;

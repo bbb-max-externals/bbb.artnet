@@ -13,3 +13,6 @@
 [submodule ".agents/skills/max-patgen"]
 	path = .agents/skills/max-patgen
 	url = git@github.com:2bbb/max-patgen.git
+[submodule ".agents/skills/max-external-githubactions"]
+	path = .agents/skills/max-external-githubactions
+	url = git@github.com:2bbb/max-external-githubactions.git

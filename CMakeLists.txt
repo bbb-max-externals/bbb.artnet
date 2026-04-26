@@ -32,6 +32,10 @@ ENDMACRO()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/libartnet)
 
+if(WIN32)
+    link_libraries(ws2_32 iphlpapi)
+endif()
+
 SUBDIRLIST(PROJECT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/source/projects)
 foreach(project_dir ${PROJECT_DIRS})
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/source/projects/${project_dir}/CMakeLists.txt")
