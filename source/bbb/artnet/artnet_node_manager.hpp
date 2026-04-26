@@ -84,20 +84,15 @@ public:
         addr.sin_port = htons(6454);
         if(inet_pton(AF_INET, target_ip, &addr.sin_addr) != 1) return -1;
 
-        int fd = socket(AF_INET, SOCK_DGRAM, 0);
-        if(fd < 0) return -1;
-
-        int enable = 1;
-        setsockopt(fd, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
-
-        ssize_t result = sendto(fd, buf, 18 + length, 0,
-            reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
-        int err = errno;
-        close(fd);
-
-        if(result < 0) {
-            fprintf(stderr, "bbb.artnet: sendto(%s) failed: %s\n", target_ip, strerror(err));
+        if(m_unicast_fd < 0) {
+            m_unicast_fd = socket(AF_INET, SOCK_DGRAM, 0);
+            if(m_unicast_fd < 0) return -1;
+            int enable = 1;
+            setsockopt(m_unicast_fd, SOL_SOCKET, SO_BROADCAST, &enable, sizeof(enable));
         }
+
+        ssize_t result = sendto(m_unicast_fd, buf, 18 + length, 0,
+            reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr));
         return result > 0 ? 0 : -1;
     }
 
@@ -105,6 +100,7 @@ public:
         : m_artnet_node(nullptr)
         , m_running(false)
         , m_ref_count(0)
+        , m_unicast_fd(-1)
     {
         m_artnet_node = artnet_new(ip, 0);
         if(!m_artnet_node && ip) {
@@ -126,12 +122,17 @@ public:
 
     ~managed_node() {
         m_running = false;
+        if(m_artnet_node) {
+            artnet_stop(m_artnet_node);
+        }
         if(m_read_thread.joinable()) {
             m_read_thread.join();
         }
         if(m_artnet_node) {
-            artnet_stop(m_artnet_node);
             artnet_destroy(m_artnet_node);
+        }
+        if(m_unicast_fd >= 0) {
+            close(m_unicast_fd);
         }
     }
 
@@ -261,6 +262,7 @@ private:
     std::thread m_read_thread;
     std::atomic<bool> m_running;
     int m_ref_count;
+    int m_unicast_fd;
     std::mutex m_mutex;
     std::vector<callback_entry> m_callbacks;
     std::string m_effective_ip;
@@ -338,8 +340,8 @@ inline bool is_broadcast_ip(const std::string& target_ip) {
     struct in_addr target;
     if(inet_pton(AF_INET, target_ip.c_str(), &target) != 1) return false;
 
-    uint32_t t = target.s_addr;
-    if((t & 0xFF) == 0xFF || t == 0) return true;
+    uint32_t t = ntohl(target.s_addr);
+    if(t == 0xFFFFFFFF || t == 0) return true;
 
     struct ifaddrs* ifa_list = nullptr;
     if(getifaddrs(&ifa_list) != 0) return false;

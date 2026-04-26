@@ -62,9 +62,9 @@ public:
         c74::min::description{"Wait for all universes before outputting."}
     };
 
-    c74::min::attribute<c74::min::symbol> mode{this, "mode", "update",
-        c74::min::description{"Output mode: update, bang, automatic, change, forced."},
-        c74::min::range{"update", "bang", "automatic", "change", "forced"}
+    c74::min::attribute<int> mode{this, "mode", 1,
+        c74::min::description{"Output mode: 0=automatic, 1=update, 2=bang, 3=change, 4=forced."},
+        c74::min::enum_map{"automatic", "update", "bang", "change", "forced"}
     };
 
     c74::min::attribute<double> framerate{this, "framerate", 40.0,
@@ -75,6 +75,22 @@ public:
     c74::min::attribute<int> osc_port{this, "osc_port", 0,
         c74::min::description{"OSC receive port (0 = disabled)."},
         c74::min::range{0, 65535}
+    };
+
+    c74::min::attribute<c74::min::symbol> osc_bind_ip{this, "osc_bind_ip", "0.0.0.0",
+        c74::min::description{"OSC listen address (0.0.0.0 = all interfaces)."}
+    };
+
+    c74::min::attribute<c74::min::symbol> target_ip{this, "target_ip", "",
+        c74::min::description{"Destination IP for filter (empty = receive from all)."}
+    };
+
+    c74::min::attribute<c74::min::symbol> bind_ip{this, "bind_ip", "",
+        c74::min::description{"Local IP to bind (empty = auto-detect)."}
+    };
+
+    c74::min::attribute<bool> verbose{this, "verbose", false,
+        c74::min::description{"Enable verbose logging."}
     };
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_init_timer{this,
@@ -133,8 +149,23 @@ public:
     };
 
 private:
+    std::string m_bip_str;
+
+    const char* resolve_bind_ip() {
+        c74::min::symbol bip = bind_ip;
+        m_bip_str = static_cast<std::string>(bip);
+        if(!m_bip_str.empty() && m_bip_str != "0.0.0.0") {
+            return m_bip_str.c_str();
+        }
+
+        c74::min::symbol tip = target_ip;
+        std::string tip_str = static_cast<std::string>(tip);
+        return bbb::artnet::resolve_bind_ip(tip_str);
+    }
+
     void init_artnet() {
-        m_managed_node = bbb::artnet::managed_node::get_or_create(nullptr);
+        const char* ip = resolve_bind_ip();
+        m_managed_node = bbb::artnet::managed_node::get_or_create(ip);
         if(!m_managed_node || !m_managed_node->valid()) {
             cerr << "bbb.artnet.node: failed to create artnet node" << c74::min::endl;
             return;
@@ -159,7 +190,8 @@ private:
         };
         m_managed_node->add_callback(cb);
         m_managed_node->retain();
-        cout << "bbb.artnet.node: bound to 0.0.0.0 (all interfaces)" << c74::min::endl;
+        cout << "bbb.artnet.node: bound to " << (ip ? ip : "0.0.0.0 (all interfaces)")
+             << c74::min::endl;
     }
 
     void handle_dmx(const uint8_t* data, int length, int universe_addr) {
@@ -197,11 +229,10 @@ private:
     }
 
     void handle_mode_output() {
-        if(mode == c74::min::symbol("update")) {
+        int m = mode;
+        if(m == 0 || m == 1) {
             m_output_timer.delay(0);
-        } else if(mode == c74::min::symbol("automatic")) {
-            m_output_timer.delay(0);
-        } else if(mode == c74::min::symbol("change")) {
+        } else if(m == 3) {
             if(m_buffer != m_prev_buffer) {
                 m_output_timer.delay(0);
             }
@@ -231,7 +262,9 @@ private:
         int port = osc_port;
         if(port <= 0) return;
 
-        m_osc_receiver = bbb::osc::asio_receiver::get<bbb::osc::asio_receiver>(port);
+        c74::min::symbol bind = osc_bind_ip;
+        std::string host = static_cast<std::string>(bind);
+        m_osc_receiver = bbb::osc::asio_receiver::get<bbb::osc::asio_receiver>(port, host);
         if(!m_osc_receiver) {
             cerr << "bbb.artnet.node: failed to setup OSC on port " << port << c74::min::endl;
             return;

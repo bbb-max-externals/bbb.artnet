@@ -102,9 +102,17 @@ public:
         c74::min::description{"Local IP to bind (empty = auto-detect from target_ip subnet)."}
     };
 
+    c74::min::attribute<c74::min::symbol> osc_bind_ip{this, "osc_bind_ip", "0.0.0.0",
+        c74::min::description{"OSC listen address (0.0.0.0 = all interfaces)."}
+    };
+
     c74::min::attribute<int> osc_port{this, "osc_port", 0,
         c74::min::description{"OSC receive port (0 = disabled)."},
         c74::min::range{0, 65535}
+    };
+
+    c74::min::attribute<bool> verbose{this, "verbose", false,
+        c74::min::description{"Enable verbose logging."}
     };
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_init_timer{this,
@@ -236,13 +244,26 @@ public:
         }
     };
 
+    c74::min::message<> dump_msg{this, "dump", "Output current DMX buffer as list.",
+        MIN_FUNCTION {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            c74::min::atoms result;
+            int total = std::min(num_channels * num_universes, static_cast<int>(m_buffer.size()));
+            result.reserve(total);
+            for(int i = 0; i < total; ++i) {
+                result.push_back(static_cast<int>(m_buffer[i]));
+            }
+            output.send(result);
+            return {};
+        }
+    };
+
 private:
     const char* resolve_bind_ip() {
         c74::min::symbol bip = bind_ip;
-        static std::string bip_str;
-        bip_str = static_cast<std::string>(bip);
-        if(!bip_str.empty() && bip_str != "0.0.0.0") {
-            return bip_str.c_str();
+        m_bip_str = static_cast<std::string>(bip);
+        if(!m_bip_str.empty() && m_bip_str != "0.0.0.0") {
+            return m_bip_str.c_str();
         }
 
         c74::min::symbol tip = target_ip;
@@ -369,12 +390,15 @@ private:
     std::atomic<bool> m_dirty;
 
     std::shared_ptr<bbb::osc::asio_receiver> m_osc_receiver;
+    std::string m_bip_str;
 
     void setup_osc() {
         int port = osc_port;
         if(port <= 0) return;
 
-        m_osc_receiver = bbb::osc::asio_receiver::get<bbb::osc::asio_receiver>(port);
+        c74::min::symbol bind = osc_bind_ip;
+        std::string host = static_cast<std::string>(bind);
+        m_osc_receiver = bbb::osc::asio_receiver::get<bbb::osc::asio_receiver>(port, host);
         if(!m_osc_receiver) {
             cerr << "bbb.artnet.controller: failed to setup OSC on port " << port << c74::min::endl;
             return;
@@ -391,6 +415,8 @@ private:
                 try_call("setchannel", max_args);
             } else if(address == "/set_offset") {
                 try_call("set_offset", max_args);
+            } else if(address == "/dump") {
+                try_call("dump", c74::min::atoms{});
             } else if(address == "/blackout") {
                 if(!max_args.empty()) {
                     blackout = static_cast<bool>(max_args[0]);
@@ -440,6 +466,10 @@ private:
                 max_args.push_back(static_cast<int>(arg));
             }
             dispatch("/set_offset", max_args);
+        });
+
+        m_osc_receiver->bind("/dump", [this, dispatch](bbb::osc::message&) {
+            dispatch("/dump", c74::min::atoms{});
         });
 
         m_osc_receiver->bind("/blackout", [this](bbb::osc::message& m) {

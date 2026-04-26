@@ -115,12 +115,16 @@ public:
         c74::min::range{0, 15}
     };
 
-    c74::min::attribute<bool> unicast{this, "unicast", true,
-        c74::min::description{"Use unicast mode."}
+    c74::min::attribute<c74::min::symbol> target_ip{this, "target_ip", "",
+        c74::min::description{"Destination IP (empty = broadcast, broadcast addr = broadcast, unicast addr = unicast)."}
     };
 
-    c74::min::attribute<c74::min::symbol> unicast_ip{this, "unicast_ip", "127.0.0.1",
-        c74::min::description{"Destination IP for unicast mode."}
+    c74::min::attribute<c74::min::symbol> bind_ip{this, "bind_ip", "",
+        c74::min::description{"Local IP to bind (empty = auto-detect from target_ip subnet)."}
+    };
+
+    c74::min::attribute<bool> verbose{this, "verbose", false,
+        c74::min::description{"Enable verbose logging."}
     };
 
     c74::min::attribute<c74::min::symbol> source_uid{this, "source_uid", "bbbb:00000001",
@@ -306,6 +310,31 @@ public:
     };
 
 private:
+    std::string m_bip_str;
+
+    const char* resolve_bind_ip() {
+        c74::min::symbol bip = bind_ip;
+        m_bip_str = static_cast<std::string>(bip);
+        if(!m_bip_str.empty() && m_bip_str != "0.0.0.0") {
+            return m_bip_str.c_str();
+        }
+
+        c74::min::symbol tip = target_ip;
+        std::string tip_str = static_cast<std::string>(tip);
+        return bbb::artnet::resolve_bind_ip(tip_str);
+    }
+
+    bool is_unicast_mode() const {
+        c74::min::symbol tip = target_ip;
+        std::string tip_str = static_cast<std::string>(tip);
+        return !tip_str.empty() && !bbb::artnet::is_broadcast_ip(tip_str);
+    }
+
+    std::string get_target_ip_str() const {
+        c74::min::symbol tip = target_ip;
+        return static_cast<std::string>(tip);
+    }
+
     bool parse_uid_arg(const c74::min::atoms& args, rdm_uid& uid) {
         if(args.empty()) {
             status_out.send({c74::min::atom("error"), c74::min::atom("missing UID argument")});
@@ -322,7 +351,8 @@ private:
     }
 
     void init_artnet() {
-        m_managed_node = bbb::artnet::managed_node::get_or_create(nullptr);
+        const char* ip = resolve_bind_ip();
+        m_managed_node = bbb::artnet::managed_node::get_or_create(ip);
         if(!m_managed_node || !m_managed_node->valid()) {
             cerr << "bbb.artnet.rdm: failed to create artnet node" << c74::min::endl;
             return;
@@ -350,7 +380,9 @@ private:
         m_managed_node->add_callback(tod_cb);
 
         m_managed_node->retain();
-        cout << "bbb.artnet.rdm: bound to 0.0.0.0 (all interfaces)" << c74::min::endl;
+        cout << "bbb.artnet.rdm: bound to " << (ip ? ip : "0.0.0.0 (all interfaces)")
+             << ", mode: " << (is_unicast_mode() ? "unicast" : "broadcast")
+             << c74::min::endl;
     }
 
     void send_rdm(const rdm_uid& dest, uint8_t cc, uint16_t pid,
