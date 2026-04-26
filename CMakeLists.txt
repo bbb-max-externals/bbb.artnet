@@ -1,6 +1,13 @@
 cmake_minimum_required(VERSION 3.19)
 project(bbb.artnet)
 
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+if(MSVC)
+    add_compile_options(/Zc:__cplusplus)
+endif()
+
 enable_testing()
 
 add_custom_target(generate_version ALL
@@ -32,11 +39,18 @@ ENDMACRO()
 
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/libartnet)
 
+if(WIN32)
+    link_libraries(ws2_32 iphlpapi)
+endif()
+
 SUBDIRLIST(PROJECT_DIRS ${CMAKE_CURRENT_SOURCE_DIR}/source/projects)
 foreach(project_dir ${PROJECT_DIRS})
     if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/source/projects/${project_dir}/CMakeLists.txt")
         message("Generating: ${project_dir}")
         add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/source/projects/${project_dir})
+        if(TARGET ${project_dir})
+            add_dependencies(${project_dir} generate_version)
+        endif()
     endif()
 endforeach()
 
