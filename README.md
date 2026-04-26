@@ -200,6 +200,18 @@ bbb.artnet/
 
 This project was inspired by imp.dmx by David Butler. His work on DMX over Art-Net for Max/MSP provided valuable reference during development.
 
+## Third-Party Licenses
+
+| Library | Author | License |
+|---|---|---|
+| [min-api](https://github.com/Cycling74/min-api) | Cycling '74 | MIT |
+| [max-sdk-base](https://github.com/Cycling74/max-sdk-base) | Cycling '74 | MIT |
+| [libartnet](https://github.com/OpenLightingProject/libartnet) | Open Lighting Project | LGPL-2.1 |
+| [bbb-osc](https://github.com/2bbb/bbb-osc) | 2bit | MIT |
+| [asio](https://github.com/chriskohlhoff/asio) | Christopher M. Kohlhoff | BSL-1.0 |
+| [oscpp](https://github.com/kaoskorobase/oscpp) | kaoskorobase | MIT |
+| [bit_by_bit](https://github.com/2bbb/bit_by_bit) | 2bit | MIT |
+
 ## License
 
 MIT License. See [LICENSE](LICENSE) for details.
