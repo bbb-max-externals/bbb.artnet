@@ -186,10 +186,9 @@ bbb.artnet/
 ├── CMakeLists.txt
 ├── deps/
 │   ├── min-api/          # Max min-api (submodule)
-│   ├── libartnet/        # Art-Net C library (forked)
 │   └── osc/              # bbb-osc (submodule) + asio
 ├── source/
-│   ├── bbb/              # shared headers (artnet_node_manager, sacn_packet)
+│   ├── bbb/              # shared headers (artnet, sacn)
 │   └── projects/         # external source per object
 ├── help/                 # help files for Max
 ├── externals/            # build output (.mxo / .mxe64)
@@ -206,7 +205,6 @@ This project was inspired by imp.dmx by David Butler. His work on DMX over Art-N
 |---|---|---|
 | [min-api](https://github.com/Cycling74/min-api) | Cycling '74 | MIT |
 | [max-sdk-base](https://github.com/Cycling74/max-sdk-base) | Cycling '74 | MIT |
-| [libartnet](https://github.com/OpenLightingProject/libartnet) | Open Lighting Project | LGPL-2.1 |
 | [bbb-osc](https://github.com/2bbb/bbb-osc) | 2bit | MIT |
 | [asio](https://github.com/chriskohlhoff/asio) | Christopher M. Kohlhoff | BSL-1.0 |
 | [oscpp](https://github.com/kaoskorobase/oscpp) | kaoskorobase | MIT |

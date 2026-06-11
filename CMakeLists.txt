@@ -37,8 +37,6 @@ MACRO(SUBDIRLIST result curdir)
     SET(${result} ${dirlist})
 ENDMACRO()
 
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/libartnet)
-
 if(WIN32)
     link_libraries(ws2_32 iphlpapi)
 endif()

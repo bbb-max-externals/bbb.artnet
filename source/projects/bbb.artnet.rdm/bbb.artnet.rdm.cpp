@@ -1,6 +1,4 @@
 #include "c74_min.h"
-#include <artnet/artnet.h>
-#include <artnet/packets.h>
 #include <bbb/artnet/artnet_node_manager.hpp>
 #include <bbb/version.h>
 #include <cstring>
@@ -170,7 +168,7 @@ public:
     c74::min::message<> discover_msg{this, "discover", "Send ArtTodRequest to discover RDM devices.",
         MIN_FUNCTION {
             if(m_managed_node && m_managed_node->valid())
-                artnet_send_tod_request(m_managed_node->node());
+                m_managed_node->send_tod_request(static_cast<uint8_t>(net));
             return {};
         }
     };
@@ -178,7 +176,7 @@ public:
     c74::min::message<> tod_msg{this, "tod", "Alias for discover.",
         MIN_FUNCTION {
             if(m_managed_node && m_managed_node->valid())
-                artnet_send_tod_request(m_managed_node->node());
+                m_managed_node->send_tod_request(static_cast<uint8_t>(net));
             return {};
         }
     };
@@ -358,11 +356,6 @@ private:
             return;
         }
 
-        artnet_set_node_type(m_managed_node->node(), ARTNET_SRV);
-        artnet_set_port_type(m_managed_node->node(), 0, ARTNET_ENABLE_OUTPUT, ARTNET_PORT_DMX);
-        artnet_set_port_addr(m_managed_node->node(), 0, ARTNET_OUTPUT_PORT, universe);
-        artnet_set_subnet_addr(m_managed_node->node(), subnet);
-
         bbb::artnet::callback_entry rdm_cb;
         rdm_cb.type = bbb::artnet::callback_type::rdm_raw;
         rdm_cb.owner = this;
@@ -374,8 +367,8 @@ private:
         bbb::artnet::callback_entry tod_cb;
         tod_cb.type = bbb::artnet::callback_type::tod_data;
         tod_cb.owner = this;
-        tod_cb.tod_fn = [this](artnet_packet_t* pkt) {
-            handle_tod(pkt);
+        tod_cb.tod_fn = [this](const bbb::artnet::protocol::tod_data& tod) {
+            handle_tod(tod);
         };
         m_managed_node->add_callback(tod_cb);
 
@@ -419,7 +412,7 @@ private:
 
         uint8_t address = static_cast<uint8_t>((subnet << 4) | (universe & 0x0F));
         if(m_managed_node && m_managed_node->valid())
-            artnet_send_rdm(m_managed_node->node(), address, frame.data(), static_cast<int>(frame.size()));
+            m_managed_node->send_rdm(static_cast<uint8_t>(net), address, frame.data(), static_cast<int>(frame.size()));
     }
 
     void process_timeout() {
@@ -529,15 +522,15 @@ private:
         m_queue.push_back(std::move(resp));
     }
 
-    void handle_tod(artnet_packet_t* pkt) {
-        uint8_t uid_count = pkt->data.toddata.uidCount;
+    void handle_tod(const bbb::artnet::protocol::tod_data& tod) {
+        uint8_t uid_count = tod.uid_count;
         if(uid_count == 0) return;
 
         queued_response resp;
         resp.type = queued_response::UIDS;
         for(int i = 0; i < uid_count; ++i) {
             rdm_uid uid;
-            std::memcpy(uid.b, pkt->data.toddata.tod[i], 6);
+            std::memcpy(uid.b, tod.uid_at(i), 6);
             resp.uids.push_back(format_uid(uid));
         }
 
