@@ -1,10 +1,12 @@
-name: Build
+name: Build & Package
 
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
+  release:
+    types: [published]
 
 jobs:
   build-macos:
@@ -18,13 +20,26 @@ jobs:
         run: if [ ! -f deps/osc/third-party/asio/README ]; then git clone https://github.com/2bbb/asio.git deps/osc/third-party/asio; fi
         shell: bash
 
-      - name: Configure and Build
-        run: cmake -B build && cmake --build build --config Release
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build --output-on-failure
+
+      - name: Verify universal binaries
+        run: |
+          while IFS= read -r binary; do
+            lipo -info "$binary"
+            lipo "$binary" -verify_arch x86_64 arm64
+          done < <(find externals -path '*/Contents/MacOS/*' -type f | sort)
 
       - name: Upload externals
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ github.event.repository.name }}-macos
+          name: bbb.artnet-macos
           path: externals/
 
   build-windows:
@@ -37,11 +52,80 @@ jobs:
       - name: Clone asio dependency
         run: if (-not (Test-Path deps/osc/third-party/asio/README)) { git clone https://github.com/2bbb/asio.git deps/osc/third-party/asio }
 
-      - name: Configure and Build
-        run: cmake -B build -G "Visual Studio 17 2022" -A x64 && cmake --build build --config Release
+      - name: Configure
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build
+        run: cmake --build build --config Release
+
+      - name: Test
+        run: ctest --test-dir build -C Release --output-on-failure
 
       - name: Upload externals
         uses: actions/upload-artifact@v7
         with:
-          name: ${{ github.event.repository.name }}-windows
+          name: bbb.artnet-windows
           path: externals/
+
+  package:
+    permissions:
+      contents: write
+    needs: [build-macos, build-windows]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Download macOS externals
+        uses: actions/download-artifact@v8
+        with:
+          name: bbb.artnet-macos
+          path: dist/bbb.artnet/externals/
+
+      - name: Download Windows externals
+        uses: actions/download-artifact@v8
+        with:
+          name: bbb.artnet-windows
+          path: dist/bbb.artnet/externals/
+
+      - name: Assemble package
+        run: |
+          mkdir -p dist/bbb.artnet
+          cp package-info.json dist/bbb.artnet/
+          cp README.md dist/bbb.artnet/ 2>/dev/null || true
+          cp LICENSE dist/bbb.artnet/ 2>/dev/null || true
+          cp -r help dist/bbb.artnet/
+          cp -r extras dist/bbb.artnet/ 2>/dev/null || true
+
+      - name: Create archive
+        run: |
+          cd dist
+          zip -r bbb.artnet.zip bbb.artnet/
+
+      - name: Upload package artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: bbb.artnet-latest
+          path: dist/bbb.artnet.zip
+
+      - name: Update latest package release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f latest "${GITHUB_SHA}"
+          git push origin refs/tags/latest --force
+
+          if gh release view latest >/dev/null 2>&1; then
+            gh release upload latest dist/bbb.artnet.zip --clobber
+          else
+            gh release create latest dist/bbb.artnet.zip --title "Latest package" --notes "Automatically updated from main at ${GITHUB_SHA}." --latest
+          fi
+
+      - name: Upload to Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/bbb.artnet.zip
