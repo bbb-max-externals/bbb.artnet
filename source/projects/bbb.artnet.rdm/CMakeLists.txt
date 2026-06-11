@@ -6,6 +6,7 @@ include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
 include_directories(
     "${C74_INCLUDES}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../source"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../deps/bbb-artnet/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../deps/osc/include"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../deps/osc/third-party/asio/include"
 )

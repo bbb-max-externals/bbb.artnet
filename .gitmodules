@@ -13,3 +13,6 @@
 [submodule ".agents/skills/max-external-githubactions"]
 	path = .agents/skills/max-external-githubactions
 	url = git@github.com:2bbb/max-external-githubactions.git
+[submodule "deps/bbb-artnet"]
+	path = deps/bbb-artnet
+	url = git@github.com:2bbb/bbb-artnet.git

@@ -185,10 +185,11 @@ Built externals are output to `externals/`.
 bbb.artnet/
 ├── CMakeLists.txt
 ├── deps/
+│   ├── bbb-artnet/       # Art-Net protocol/node helper library (submodule)
 │   ├── min-api/          # Max min-api (submodule)
 │   └── osc/              # bbb-osc (submodule) + asio
 ├── source/
-│   ├── bbb/              # shared headers (artnet, sacn)
+│   ├── bbb/              # shared headers for this package
 │   └── projects/         # external source per object
 ├── help/                 # help files for Max
 ├── externals/            # build output (.mxo / .mxe64)
@@ -205,6 +206,7 @@ This project was inspired by imp.dmx by David Butler. His work on DMX over Art-N
 |---|---|---|
 | [min-api](https://github.com/Cycling74/min-api) | Cycling '74 | MIT |
 | [max-sdk-base](https://github.com/Cycling74/max-sdk-base) | Cycling '74 | MIT |
+| [bbb-artnet](https://github.com/2bbb/bbb-artnet) | 2bit | MIT |
 | [bbb-osc](https://github.com/2bbb/bbb-osc) | 2bit | MIT |
 | [asio](https://github.com/chriskohlhoff/asio) | Christopher M. Kohlhoff | BSL-1.0 |
 | [oscpp](https://github.com/kaoskorobase/oscpp) | kaoskorobase | MIT |

@@ -10,6 +10,9 @@ endif()
 
 enable_testing()
 
+set(BBB_ARTNET_BUILD_TESTS ON CACHE BOOL "Build bbb-artnet unit tests" FORCE)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/bbb-artnet)
+
 add_custom_target(generate_version ALL
     COMMAND ${CMAKE_COMMAND}
         -DWORKING_DIR=${CMAKE_CURRENT_SOURCE_DIR}
