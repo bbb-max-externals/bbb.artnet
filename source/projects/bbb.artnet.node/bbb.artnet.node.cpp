@@ -199,7 +199,8 @@ private:
         std::lock_guard<std::mutex> lock(m_mutex);
         int port = -1;
         for(int i = 0; i < num_universes; ++i) {
-            if(((universe + i) & 0x0F) == (universe_addr & 0x0F)) {
+            const uint16_t port_address = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
+            if(port_address == static_cast<uint16_t>(universe_addr & 0x7FFF)) {
                 port = i;
                 break;
             }

@@ -351,7 +351,7 @@ private:
         if(blackout) {
             std::vector<uint8_t> zeros(512, 0);
             for(int i = 0; i < num_universes; ++i) {
-                uint16_t port_addr = bbb::artnet::protocol::make_port_address(net, subnet, (universe + i) & 0x0F);
+                uint16_t port_addr = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
                 if(unicast) {
                     m_managed_node->send_dmx_unicast(tip.c_str(),
                         port_addr, 512, zeros.data());
@@ -365,7 +365,7 @@ private:
                 int offset = i * 512;
                 int length = std::min(512, static_cast<int>(m_buffer.size()) - offset);
                 if(length > 0) {
-                    uint16_t port_addr = bbb::artnet::protocol::make_port_address(net, subnet, (universe + i) & 0x0F);
+                    uint16_t port_addr = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
                     if(unicast) {
                         m_managed_node->send_dmx_unicast(tip.c_str(),
                             port_addr,
