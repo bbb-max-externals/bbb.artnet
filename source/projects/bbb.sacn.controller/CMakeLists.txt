@@ -26,4 +26,7 @@ if(EXISTS "${HELP_SOURCE}")
     )
 endif()
 
+set(AUTHOR_DOMAIN "jp.2bit")
+set(BUNDLE_IDENTIFIER "${PROJECT_NAME}")
+
 include(${C74_MIN_API_DIR}/script/min-posttarget.cmake)
