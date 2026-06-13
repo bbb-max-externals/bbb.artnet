@@ -28,12 +28,24 @@ public:
 
     c74::min::attribute<int> universe{this, "universe", 1,
         c74::min::description{"sACN universe (1-63999)."},
-        c74::min::range{1, 63999}
+        c74::min::range{1, 63999},
+        c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
+            if(!args.empty()) {
+                reconfigure_universe_range(static_cast<int>(args[0]), static_cast<int>(num_universes));
+            }
+            return args;
+        }}
     };
 
     c74::min::attribute<int> num_universes{this, "num_universes", 1,
         c74::min::description{"Number of universes to receive."},
-        c74::min::range{1, 32}
+        c74::min::range{1, 32},
+        c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
+            if(!args.empty()) {
+                reconfigure_universe_range(static_cast<int>(universe), static_cast<int>(args[0]));
+            }
+            return args;
+        }}
     };
 
     c74::min::attribute<int> num_channels{this, "num_channels", 512,
@@ -59,10 +71,7 @@ public:
         , m_running{false}
     {
         bbb::net::ensure_init();
-        m_buffer.resize(512 * num_universes, 0);
-        m_prev_buffer.resize(512 * num_universes, 0);
-        m_received_universes.resize(num_universes, false);
-        m_last_sequence.resize(num_universes, 255);
+        resize_universe_buffers(static_cast<int>(num_universes));
         init_socket();
     }
 
@@ -72,7 +81,7 @@ public:
             m_read_thread.join();
         }
         if(bbb::net::socket_valid(m_fd)) {
-            leave_multicast_groups();
+            leave_multicast_groups(static_cast<int>(universe), static_cast<int>(num_universes));
             bbb::net::close_socket(m_fd);
         }
     }
@@ -93,6 +102,28 @@ public:
     };
 
 private:
+    void resize_universe_buffers(int universe_count) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        int clamped_universe_count = std::max(1, universe_count);
+        size_t buffer_size = 512 * static_cast<size_t>(clamped_universe_count);
+        m_buffer.resize(buffer_size, 0);
+        m_prev_buffer.resize(buffer_size, 0);
+        m_received_universes.assign(static_cast<size_t>(clamped_universe_count), false);
+        m_last_sequence.assign(static_cast<size_t>(clamped_universe_count), 255);
+    }
+
+    void reconfigure_universe_range(int first_universe, int universe_count) {
+        int clamped_first_universe = std::max(1, first_universe);
+        int clamped_universe_count = std::max(1, universe_count);
+        if(bbb::net::socket_valid(m_fd)) {
+            leave_multicast_groups(static_cast<int>(universe), static_cast<int>(num_universes));
+        }
+        resize_universe_buffers(clamped_universe_count);
+        if(bbb::net::socket_valid(m_fd)) {
+            join_multicast_groups(clamped_first_universe, clamped_universe_count);
+        }
+    }
+
     void init_socket() {
         m_fd = socket(AF_INET, SOCK_DGRAM, 0);
         if(!bbb::net::socket_valid(m_fd)) {
@@ -118,7 +149,7 @@ private:
             return;
         }
 
-        join_multicast_groups();
+        join_multicast_groups(static_cast<int>(universe), static_cast<int>(num_universes));
 
         m_running = true;
         m_read_thread = std::thread([this]() {
@@ -126,9 +157,9 @@ private:
         });
     }
 
-    void join_multicast_groups() {
-        for(int i = 0; i < num_universes; ++i) {
-            uint16_t univ = static_cast<uint16_t>(universe + i);
+    void join_multicast_groups(int first_universe, int universe_count) {
+        for(int i = 0; i < universe_count; ++i) {
+            uint16_t univ = static_cast<uint16_t>(first_universe + i);
             auto mc = sacn::universe_to_multicast(univ);
 
             struct ip_mreq mreq;
@@ -142,9 +173,9 @@ private:
         }
     }
 
-    void leave_multicast_groups() {
-        for(int i = 0; i < num_universes; ++i) {
-            uint16_t univ = static_cast<uint16_t>(universe + i);
+    void leave_multicast_groups(int first_universe, int universe_count) {
+        for(int i = 0; i < universe_count; ++i) {
+            uint16_t univ = static_cast<uint16_t>(first_universe + i);
             auto mc = sacn::universe_to_multicast(univ);
 
             struct ip_mreq mreq;
@@ -177,18 +208,6 @@ private:
             uint8_t sequence = buf[75];
             uint16_t pkt_universe = ntohs(*reinterpret_cast<const uint16_t*>(buf + 78));
 
-            int univ_index = -1;
-            for(int i = 0; i < num_universes; ++i) {
-                if(static_cast<uint16_t>(universe + i) == pkt_universe) {
-                    univ_index = i;
-                    break;
-                }
-            }
-            if(univ_index < 0) continue;
-
-            if(sequence == m_last_sequence[univ_index]) continue;
-            m_last_sequence[univ_index] = sequence;
-
             uint8_t dmp_vector = buf[117];
             if(dmp_vector != 0x02) continue;
 
@@ -198,18 +217,31 @@ private:
 
             {
                 std::lock_guard<std::mutex> lock(m_mutex);
+                int univ_index = -1;
+                int universe_count = static_cast<int>(m_received_universes.size());
+                for(int i = 0; i < universe_count; ++i) {
+                    if(static_cast<uint16_t>(universe + i) == pkt_universe) {
+                        univ_index = i;
+                        break;
+                    }
+                }
+                if(univ_index < 0) continue;
+
+                if(sequence == m_last_sequence[univ_index]) continue;
+                m_last_sequence[univ_index] = sequence;
+
                 int offset = univ_index * 512;
                 if(offset + copy_len <= static_cast<int>(m_buffer.size())) {
                     std::memcpy(m_buffer.data() + offset, buf + 126, copy_len);
                 }
 
-                if(sync_universes && num_universes > 1) {
+                if(sync_universes && 1 < universe_count) {
                     m_received_universes[univ_index] = true;
                     bool all_received = true;
                     for(auto&& received : m_received_universes) {
                         if(!received) { all_received = false; break; }
                     }
-                    if(!all_received) return;
+                    if(!all_received) continue;
 
                     for(auto&& received : m_received_universes) {
                         received = false;

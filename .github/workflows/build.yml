@@ -95,6 +95,7 @@ jobs:
           cp LICENSE dist/bbb.artnet/ 2>/dev/null || true
           cp -r help dist/bbb.artnet/
           cp -r extras dist/bbb.artnet/ 2>/dev/null || true
+          find dist/bbb.artnet/externals -path '*/Contents/MacOS/*' -type f -exec chmod 755 {} +
 
       - name: Create archive
         run: |

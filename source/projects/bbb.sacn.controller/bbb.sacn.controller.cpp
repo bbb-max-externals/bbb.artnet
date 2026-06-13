@@ -34,7 +34,13 @@ public:
 
     c74::min::attribute<int> num_universes{this, "num_universes", 1,
         c74::min::description{"Number of universes to manage."},
-        c74::min::range{1, 32}
+        c74::min::range{1, 32},
+        c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
+            if(!args.empty()) {
+                resize_universe_buffers(static_cast<int>(args[0]));
+            }
+            return args;
+        }}
     };
 
     c74::min::attribute<int> num_channels{this, "num_channels", 512,
@@ -88,8 +94,7 @@ public:
         , m_sequence{0}
     {
         bbb::net::ensure_init();
-        m_buffer.resize(512 * num_universes, 0);
-        m_prev_buffer.resize(512 * num_universes, 0);
+        resize_universe_buffers(static_cast<int>(num_universes));
         m_cid = sacn::generate_cid();
         init_socket();
     }
@@ -193,6 +198,13 @@ public:
     };
 
 private:
+    void resize_universe_buffers(int universe_count) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        size_t buffer_size = 512 * static_cast<size_t>(std::max(1, universe_count));
+        m_buffer.resize(buffer_size, 0);
+        m_prev_buffer.resize(buffer_size, 0);
+    }
+
     void init_socket() {
         m_fd = socket(AF_INET, SOCK_DGRAM, 0);
         if(!bbb::net::socket_valid(m_fd)) {
