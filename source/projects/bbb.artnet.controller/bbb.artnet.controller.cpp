@@ -93,10 +93,18 @@ public:
         c74::min::enum_map{"automatic", "bang", "update", "change", "forced"},
         c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
             c74::min::atoms normalized_args = args;
-            if(m_constructed && !args.empty()) {
-                int mode_value = mode_atom_to_int(args[0]);
-                normalized_args = c74::min::atoms{mode_value};
-                start_forced_timer_for_mode(mode_value);
+            try {
+                if(m_constructed && !args.empty()) {
+                    int mode_value = mode_atom_to_int(args[0]);
+                    normalized_args = c74::min::atoms{mode_value};
+                    start_forced_timer_for_mode(mode_value);
+                }
+            } catch(const std::exception& e) {
+                m_running = false;
+                cerr << "bbb.artnet.controller: failed to set mode: " << e.what() << c74::min::endl;
+            } catch(...) {
+                m_running = false;
+                cerr << "bbb.artnet.controller: failed to set mode" << c74::min::endl;
             }
             return normalized_args;
         }}
@@ -178,93 +186,104 @@ public:
         m_running = false;
         if(m_managed_node) {
             m_managed_node->remove_callbacks(this);
-            m_managed_node->release();
         }
     }
 
     c74::min::message<> list_msg{this, "list", "Set DMX values from a list.",
         MIN_FUNCTION {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            size_t count = std::min(args.size(), m_buffer.size());
-            for(size_t i = 0; i < count; ++i) {
-                int val = static_cast<int>(args[i]);
-                m_buffer[i] = static_cast<uint8_t>(std::max(0, std::min(255, val)));
-            }
-            m_dirty = true;
-            handle_mode_send();
+            guard_message("list", [&]() {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                size_t count = std::min(args.size(), m_buffer.size());
+                for(size_t i = 0; i < count; ++i) {
+                    int val = static_cast<int>(args[i]);
+                    m_buffer[i] = static_cast<uint8_t>(std::max(0, std::min(255, val)));
+                }
+                m_dirty = true;
+                handle_mode_send();
+            });
             return {};
         }
     };
 
     c74::min::message<> bang_msg{this, "bang", "Trigger send in bang mode.",
         MIN_FUNCTION {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            send_all();
+            guard_message("bang", [&]() {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                send_all();
+            });
             return {};
         }
     };
 
     c74::min::message<> channel_msg{this, "channel", "Set a single DMX channel.",
         MIN_FUNCTION {
-            if(args.size() < 2) {
-                return {};
-            }
-            std::lock_guard<std::mutex> lock(m_mutex);
-            int index = static_cast<int>(args[0]) - static_cast<int>(origin);
-            int value = static_cast<int>(args[1]);
-            if(0 <= index && static_cast<size_t>(index) < m_buffer.size()) {
-                m_buffer[index] = static_cast<uint8_t>(std::max(0, std::min(255, value)));
-                m_dirty = true;
-                handle_mode_send();
-            }
+            guard_message("channel", [&]() {
+                if(args.size() < 2) {
+                    return;
+                }
+                std::lock_guard<std::mutex> lock(m_mutex);
+                int index = static_cast<int>(args[0]) - static_cast<int>(origin);
+                int value = static_cast<int>(args[1]);
+                if(0 <= index && static_cast<size_t>(index) < m_buffer.size()) {
+                    m_buffer[index] = static_cast<uint8_t>(std::max(0, std::min(255, value)));
+                    m_dirty = true;
+                    handle_mode_send();
+                }
+            });
             return {};
         }
     };
 
     c74::min::message<> setchannel_msg{this, "setchannel", "Set a single DMX channel without sending.",
         MIN_FUNCTION {
-            if(args.size() < 2) {
-                return {};
-            }
-            std::lock_guard<std::mutex> lock(m_mutex);
-            int index = static_cast<int>(args[0]) - static_cast<int>(origin);
-            int value = static_cast<int>(args[1]);
-            if(0 <= index && static_cast<size_t>(index) < m_buffer.size()) {
-                m_buffer[index] = static_cast<uint8_t>(std::max(0, std::min(255, value)));
-                m_dirty = true;
-            }
+            guard_message("setchannel", [&]() {
+                if(args.size() < 2) {
+                    return;
+                }
+                std::lock_guard<std::mutex> lock(m_mutex);
+                int index = static_cast<int>(args[0]) - static_cast<int>(origin);
+                int value = static_cast<int>(args[1]);
+                if(0 <= index && static_cast<size_t>(index) < m_buffer.size()) {
+                    m_buffer[index] = static_cast<uint8_t>(std::max(0, std::min(255, value)));
+                    m_dirty = true;
+                }
+            });
             return {};
         }
     };
 
     c74::min::message<> set_msg{this, "set", "Store DMX values without sending.",
         MIN_FUNCTION {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            size_t count = std::min(args.size(), m_buffer.size());
-            for(size_t i = 0; i < count; ++i) {
-                int val = static_cast<int>(args[i]);
-                m_buffer[i] = static_cast<uint8_t>(std::max(0, std::min(255, val)));
-            }
-            m_dirty = true;
+            guard_message("set", [&]() {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                size_t count = std::min(args.size(), m_buffer.size());
+                for(size_t i = 0; i < count; ++i) {
+                    int val = static_cast<int>(args[i]);
+                    m_buffer[i] = static_cast<uint8_t>(std::max(0, std::min(255, val)));
+                }
+                m_dirty = true;
+            });
             return {};
         }
     };
 
     c74::min::message<> set_offset_msg{this, "set_offset", "Store DMX values at offset without sending.",
         MIN_FUNCTION {
-            if(args.empty()) {
-                return {};
-            }
-            std::lock_guard<std::mutex> lock(m_mutex);
-            int offset = static_cast<int>(args[0]) - static_cast<int>(origin);
-            for(size_t i = 1; i < args.size(); ++i) {
-                size_t idx = static_cast<size_t>(offset + static_cast<int>(i) - 1);
-                if(idx < m_buffer.size()) {
-                    int val = static_cast<int>(args[i]);
-                    m_buffer[idx] = static_cast<uint8_t>(std::max(0, std::min(255, val)));
+            guard_message("set_offset", [&]() {
+                if(args.empty()) {
+                    return;
                 }
-            }
-            m_dirty = true;
+                std::lock_guard<std::mutex> lock(m_mutex);
+                int offset = static_cast<int>(args[0]) - static_cast<int>(origin);
+                for(size_t i = 1; i < args.size(); ++i) {
+                    size_t idx = static_cast<size_t>(offset + static_cast<int>(i) - 1);
+                    if(idx < m_buffer.size()) {
+                        int val = static_cast<int>(args[i]);
+                        m_buffer[idx] = static_cast<uint8_t>(std::max(0, std::min(255, val)));
+                    }
+                }
+                m_dirty = true;
+            });
             return {};
         }
     };
@@ -278,19 +297,34 @@ public:
 
     c74::min::message<> dump_msg{this, "dump", "Output current DMX buffer as list.",
         MIN_FUNCTION {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            c74::min::atoms result;
-            int total = std::min(num_channels * num_universes, static_cast<int>(m_buffer.size()));
-            result.reserve(total);
-            for(int i = 0; i < total; ++i) {
-                result.push_back(static_cast<int>(m_buffer[i]));
-            }
-            output.send(result);
+            guard_message("dump", [&]() {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                c74::min::atoms result;
+                int total = std::min(num_channels * num_universes, static_cast<int>(m_buffer.size()));
+                result.reserve(total);
+                for(int i = 0; i < total; ++i) {
+                    result.push_back(static_cast<int>(m_buffer[i]));
+                }
+                output.send(result);
+            });
             return {};
         }
     };
 
 private:
+    template <typename function_type>
+    void guard_message(const char* name, function_type&& function) {
+        try {
+            function();
+        } catch(const std::exception& e) {
+            m_running = false;
+            cerr << "bbb.artnet.controller: " << name << " failed: " << e.what() << c74::min::endl;
+        } catch(...) {
+            m_running = false;
+            cerr << "bbb.artnet.controller: " << name << " failed" << c74::min::endl;
+        }
+    }
+
     void resize_universe_buffers(int universe_count) {
         std::lock_guard<std::mutex> lock(m_mutex);
         size_t buffer_size = 512 * static_cast<size_t>(std::max(1, universe_count));
@@ -332,7 +366,6 @@ private:
              << ", mode: " << (is_unicast_mode() ? "unicast" : "broadcast")
              << c74::min::endl;
 
-        m_managed_node->retain();
         start_forced_timer();
     }
 
