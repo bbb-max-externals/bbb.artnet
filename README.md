@@ -135,8 +135,10 @@ Sends DMX data via sACN (E1.31) protocol.
 | `framerate` | 40.0 | Framerate for forced mode |
 | `priority` | 100 | sACN priority (0–200) |
 | `source_name` | bbb.sacn.controller | sACN source name |
-| `unicast` | false | Use unicast mode |
-| `unicast_ip` | 127.0.0.1 | Destination IP for unicast |
+| `target_ip` | "" | Destination IP (empty = per-universe multicast, unicast addr = unicast) |
+| `bind_ip` | "" | Local interface IP for outgoing sACN (sets multicast interface) |
+| `unicast` | false | Legacy compatibility: use `unicast_ip` when `target_ip` is empty |
+| `unicast_ip` | 127.0.0.1 | Legacy destination IP for unicast |
 
 ### bbb.sacn.node
 

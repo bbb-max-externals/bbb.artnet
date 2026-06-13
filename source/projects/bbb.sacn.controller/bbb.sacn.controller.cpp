@@ -88,12 +88,20 @@ public:
         c74::min::description{"sACN source name."}
     };
 
+    c74::min::attribute<c74::min::symbol> target_ip{this, "target_ip", "",
+        c74::min::description{"Destination IP (empty = per-universe multicast, unicast address = unicast)."}
+    };
+
+    c74::min::attribute<c74::min::symbol> bind_ip{this, "bind_ip", "",
+        c74::min::description{"Local interface IP for outgoing sACN (empty = auto/default route)."}
+    };
+
     c74::min::attribute<bool> unicast{this, "unicast", false,
-        c74::min::description{"Use unicast mode instead of multicast."}
+        c74::min::description{"Legacy compatibility: use unicast_ip when target_ip is empty."}
     };
 
     c74::min::attribute<c74::min::symbol> unicast_ip{this, "unicast_ip", "127.0.0.1",
-        c74::min::description{"Destination IP for unicast mode."}
+        c74::min::description{"Legacy compatibility: destination IP when unicast is enabled and target_ip is empty."}
     };
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_init_timer{this,
@@ -286,8 +294,151 @@ private:
         char loop = 1;
         setsockopt(m_fd, IPPROTO_IP, IP_MULTICAST_LOOP, &loop, sizeof(loop));
 
+        configure_bind_interface();
+
         c74::min::symbol mode_value = mode;
         start_forced_timer_for_mode(mode_value);
+    }
+
+    std::string symbol_to_string(c74::min::symbol value) const {
+        return static_cast<const char*>(value);
+    }
+
+    std::string get_target_ip_str() const {
+        c74::min::symbol value = target_ip;
+        return symbol_to_string(value);
+    }
+
+    std::string get_legacy_unicast_ip_str() const {
+        c74::min::symbol value = unicast_ip;
+        return symbol_to_string(value);
+    }
+
+    std::string get_bind_ip_str() const {
+        c74::min::symbol value = bind_ip;
+        return symbol_to_string(value);
+    }
+
+    bool is_ipv4_multicast(const std::string& ip_string) const {
+        struct in_addr address;
+        if(inet_pton(AF_INET, ip_string.c_str(), &address) != 1) {
+            return false;
+        }
+
+        uint32_t host_address = ntohl(address.s_addr);
+        return 0xE0000000 <= host_address && host_address <= 0xEFFFFFFF;
+    }
+
+    std::string multicast_ip_for_universe(uint16_t current_universe) const {
+        auto multicast = sacn::universe_to_multicast(current_universe);
+        char multicast_string[16];
+        std::snprintf(multicast_string, sizeof(multicast_string), "%d.%d.%d.%d",
+            multicast.a, multicast.b, multicast.c, multicast.d);
+        return multicast_string;
+    }
+
+    std::string destination_ip_for_universe(uint16_t current_universe) const {
+        std::string target = get_target_ip_str();
+        if(!target.empty()) {
+            return target;
+        }
+
+        if(static_cast<bool>(unicast)) {
+            return get_legacy_unicast_ip_str();
+        }
+
+        return multicast_ip_for_universe(current_universe);
+    }
+
+    bool is_unicast_mode() const {
+        std::string target = get_target_ip_str();
+        if(!target.empty()) {
+            return !is_ipv4_multicast(target);
+        }
+
+        return static_cast<bool>(unicast);
+    }
+
+    const char* resolve_bind_ip_for_target(const std::string& destination_ip) {
+        if(destination_ip.empty() || is_ipv4_multicast(destination_ip)) {
+            return nullptr;
+        }
+
+        struct in_addr target;
+        if(inet_pton(AF_INET, destination_ip.c_str(), &target) != 1) {
+            return nullptr;
+        }
+
+        auto adapters = bbb::net::get_adapters();
+        for(const auto& adapter : adapters) {
+            if(!adapter.is_up) {
+                continue;
+            }
+            if((adapter.addr & adapter.netmask) == (target.s_addr & adapter.netmask)) {
+                struct in_addr address;
+                address.s_addr = adapter.addr;
+                char buffer[INET_ADDRSTRLEN];
+                if(inet_ntop(AF_INET, &address, buffer, sizeof(buffer))) {
+                    m_resolved_bind_ip_str = buffer;
+                    return m_resolved_bind_ip_str.c_str();
+                }
+            }
+        }
+
+        return nullptr;
+    }
+
+    const char* resolve_bind_ip() {
+        std::string bind_string = get_bind_ip_str();
+        if(!bind_string.empty() && bind_string != "0.0.0.0") {
+            m_resolved_bind_ip_str = bind_string;
+            return m_resolved_bind_ip_str.c_str();
+        }
+
+        std::string target = get_target_ip_str();
+        if(!target.empty()) {
+            return resolve_bind_ip_for_target(target);
+        }
+
+        if(static_cast<bool>(unicast)) {
+            return resolve_bind_ip_for_target(get_legacy_unicast_ip_str());
+        }
+
+        return nullptr;
+    }
+
+    void configure_bind_interface() {
+        const char* local_ip = resolve_bind_ip();
+        if(!local_ip || std::strlen(local_ip) == 0) {
+            cout << "bbb.sacn.controller: bound to default interface, mode: "
+                 << (is_unicast_mode() ? "unicast" : "multicast") << c74::min::endl;
+            return;
+        }
+
+        struct in_addr interface_address;
+        if(inet_pton(AF_INET, local_ip, &interface_address) != 1) {
+            cerr << "bbb.sacn.controller: invalid bind_ip " << local_ip << c74::min::endl;
+            return;
+        }
+
+        struct sockaddr_in local_address;
+        std::memset(&local_address, 0, sizeof(local_address));
+        local_address.sin_family = AF_INET;
+        local_address.sin_port = htons(0);
+        local_address.sin_addr = interface_address;
+
+        if(bind(m_fd, reinterpret_cast<struct sockaddr*>(&local_address), sizeof(local_address)) < 0) {
+            cerr << "bbb.sacn.controller: failed to bind to " << local_ip << c74::min::endl;
+        }
+
+        if(setsockopt(m_fd, IPPROTO_IP, IP_MULTICAST_IF,
+            reinterpret_cast<const char*>(&interface_address), sizeof(interface_address)) < 0) {
+            cerr << "bbb.sacn.controller: failed to set multicast interface " << local_ip << c74::min::endl;
+        }
+
+        cout << "bbb.sacn.controller: bound to " << local_ip
+             << ", mode: " << (is_unicast_mode() ? "unicast" : "multicast")
+             << c74::min::endl;
     }
 
     void start_forced_timer_for_mode(c74::min::symbol mode_value) {
@@ -346,16 +497,10 @@ private:
             address.sin_family = AF_INET;
             address.sin_port = htons(5568);
 
-            if(unicast) {
-                c74::min::symbol ip_symbol = unicast_ip;
-                std::string ip_string(static_cast<const char*>(ip_symbol));
-                inet_pton(AF_INET, ip_string.c_str(), &address.sin_addr);
-            } else {
-                auto multicast = sacn::universe_to_multicast(current_universe);
-                char multicast_string[16];
-                std::snprintf(multicast_string, sizeof(multicast_string), "%d.%d.%d.%d",
-                    multicast.a, multicast.b, multicast.c, multicast.d);
-                inet_pton(AF_INET, multicast_string, &address.sin_addr);
+            std::string destination_ip = destination_ip_for_universe(current_universe);
+            if(inet_pton(AF_INET, destination_ip.c_str(), &address.sin_addr) != 1) {
+                cerr << "bbb.sacn.controller: invalid target_ip " << destination_ip << c74::min::endl;
+                continue;
             }
 
             int packet_size = 126 + 1 + length;
@@ -380,6 +525,7 @@ private:
     std::atomic<bool> m_dirty;
     uint8_t m_sequence;
     std::array<uint8_t, 16> m_cid;
+    std::string m_resolved_bind_ip_str;
     bool m_constructed{false};
 };
 
