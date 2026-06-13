@@ -35,7 +35,7 @@ inline int clamp_data_length(int length) {
     if(length < 0) {
         return 0;
     }
-    return std::min(length, max_dmx_data_length);
+    return (std::min)(length, max_dmx_data_length);
 }
 
 inline int packet_size_for_data_length(int length) {
