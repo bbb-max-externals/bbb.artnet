@@ -13,6 +13,9 @@
 #include <exception>
 
 class artnet_controller : public c74::min::object<artnet_controller> {
+private:
+    bool m_constructed{false};
+
 public:
     MIN_DESCRIPTION{"Send DMX via Art-Net protocol."};
     MIN_TAGS{"dmx, artnet, lighting"};
@@ -59,8 +62,14 @@ public:
         c74::min::description{"Number of universes to manage."},
         c74::min::range{1, 32},
         c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
-            if(!args.empty()) {
-                resize_universe_buffers(static_cast<int>(args[0]));
+            if(m_constructed && !args.empty()) {
+                try {
+                    resize_universe_buffers(static_cast<int>(args[0]));
+                } catch(const std::exception& e) {
+                    cerr << "bbb.artnet.controller: failed to resize universes: " << e.what() << c74::min::endl;
+                } catch(...) {
+                    cerr << "bbb.artnet.controller: failed to resize universes" << c74::min::endl;
+                }
             }
             return args;
         }}
@@ -83,8 +92,13 @@ public:
         c74::min::description{"Output mode: 0=automatic, 1=bang, 2=update, 3=change, 4=forced."},
         c74::min::enum_map{"automatic", "bang", "update", "change", "forced"},
         c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
-            start_forced_timer();
-            return args;
+            c74::min::atoms normalized_args = args;
+            if(m_constructed && !args.empty()) {
+                int mode_value = mode_atom_to_int(args[0]);
+                normalized_args = c74::min::atoms{mode_value};
+                start_forced_timer_for_mode(mode_value);
+            }
+            return normalized_args;
         }}
     };
 
@@ -155,6 +169,7 @@ public:
         : m_running{false}
         , m_dirty{false}
     {
+        m_constructed = true;
         resize_universe_buffers(static_cast<int>(num_universes));
         m_init_timer.delay(0);
     }
@@ -341,8 +356,26 @@ private:
     };
 
     void start_forced_timer() {
+        start_forced_timer_for_mode(static_cast<int>(mode));
+    }
+
+    int mode_atom_to_int(const c74::min::atom& atom) const {
+        if(atom.a_type == c74::max::A_SYM) {
+            c74::min::symbol value{atom};
+            if(value == "automatic") return 0;
+            if(value == "bang") return 1;
+            if(value == "update") return 2;
+            if(value == "change") return 3;
+            if(value == "forced") return 4;
+        }
+
+        int mode_value = static_cast<int>(atom);
+        return std::max(0, std::min(4, mode_value));
+    }
+
+    void start_forced_timer_for_mode(int mode_value) {
         try {
-            if(mode == 4) {
+            if(mode_value == 4) {
                 m_running = true;
                 double interval = 1000.0 / static_cast<double>(framerate);
                 m_forced_timer.delay(interval);
