@@ -19,6 +19,9 @@ add_executable(bbb_sacn_packet_tests
 target_include_directories(bbb_sacn_packet_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/source
 )
+if(WIN32)
+    target_link_libraries(bbb_sacn_packet_tests PRIVATE ws2_32)
+endif()
 add_test(NAME bbb_sacn_packet_tests COMMAND bbb_sacn_packet_tests)
 
 add_custom_target(generate_version ALL
