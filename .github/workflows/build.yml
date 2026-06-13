@@ -71,7 +71,7 @@ jobs:
     permissions:
       contents: write
     needs: [build-macos, build-windows]
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v6
 
@@ -88,19 +88,111 @@ jobs:
           path: dist/bbb.artnet/externals/
 
       - name: Assemble package
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p dist/bbb.artnet
           cp package-info.json dist/bbb.artnet/
           cp README.md dist/bbb.artnet/ 2>/dev/null || true
           cp LICENSE dist/bbb.artnet/ 2>/dev/null || true
-          cp -r help dist/bbb.artnet/
-          cp -r extras dist/bbb.artnet/ 2>/dev/null || true
+          cp -R help dist/bbb.artnet/
+          cp -R extras dist/bbb.artnet/ 2>/dev/null || true
           find dist/bbb.artnet/externals -path '*/Contents/MacOS/*' -type f -exec chmod 755 {} +
 
-      - name: Create archive
+      - name: Validate Apple signing secrets
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'release'
+        shell: bash
+        env:
+          MACOS_CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          MACOS_CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
         run: |
+          set -euo pipefail
+          missing=0
+          for name in \
+            MACOS_CERTIFICATE_P12 \
+            MACOS_CERTIFICATE_PASSWORD \
+            APPLE_ID \
+            APPLE_TEAM_ID \
+            APPLE_APP_SPECIFIC_PASSWORD \
+            DEVELOPER_ID_APPLICATION
+          do
+            if [ -z "${!name:-}" ]; then
+              echo "::error::Missing repository secret: ${name}"
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            echo "Refusing to publish an unsigned/unnotarized latest package. Add the missing Apple Developer ID/notarization secrets."
+            exit 1
+          fi
+
+      - name: Import Developer ID certificate
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'release'
+        shell: bash
+        env:
+          CERTIFICATE_P12: ${{ secrets.MACOS_CERTIFICATE_P12 }}
+          CERTIFICATE_PASSWORD: ${{ secrets.MACOS_CERTIFICATE_PASSWORD }}
+          KEYCHAIN_PASSWORD: ${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          set -euo pipefail
+          CERT_PATH="$RUNNER_TEMP/developer-id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/app-signing.keychain-db"
+          printf '%s' "$CERTIFICATE_P12" | base64 --decode > "$CERT_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERT_PATH" -P "$CERTIFICATE_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+
+      - name: Sign Max externals
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'release'
+        shell: bash
+        env:
+          DEVELOPER_ID_APPLICATION: ${{ secrets.DEVELOPER_ID_APPLICATION }}
+          BUNDLE_ID_PREFIX: jp.2bit
+        run: |
+          set -euo pipefail
+          sanitize_identifier_component() {
+            printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9.-]+/-/g; s/^-+//; s/-+$//'
+          }
+          find dist/bbb.artnet/externals -name "*.mxo" -type d -print0 | while IFS= read -r -d '' mxo; do
+            name="$(basename "$mxo" .mxo)"
+            component="$(sanitize_identifier_component "$name")"
+            identifier="${BUNDLE_ID_PREFIX}.${component}"
+            codesign --force --deep --options runtime --timestamp \
+              --identifier "$identifier" \
+              --sign "$DEVELOPER_ID_APPLICATION" \
+              "$mxo"
+            codesign --verify --deep --strict --verbose=2 "$mxo"
+            codesign -dv "$mxo" 2>&1 | sed -n '1,8p'
+          done
+
+      - name: Create archive
+        shell: bash
+        run: |
+          set -euo pipefail
           cd dist
-          zip -r bbb.artnet.zip bbb.artnet/
+          ditto -c -k --keepParent bbb.artnet bbb.artnet.zip
+
+      - name: Notarize archive
+        if: (github.event_name == 'push' && github.ref == 'refs/heads/main') || github.event_name == 'release'
+        shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+        run: |
+          set -euo pipefail
+          xcrun notarytool submit dist/bbb.artnet.zip \
+            --apple-id "$APPLE_ID" \
+            --team-id "$APPLE_TEAM_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --wait
 
       - name: Upload package artifact
         uses: actions/upload-artifact@v7
