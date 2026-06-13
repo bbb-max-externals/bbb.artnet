@@ -10,6 +10,7 @@
 #include <mutex>
 #include <atomic>
 #include <chrono>
+#include <exception>
 
 class artnet_controller : public c74::min::object<artnet_controller> {
 public:
@@ -122,16 +123,28 @@ public:
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_init_timer{this,
         MIN_FUNCTION {
-            init_artnet();
-            setup_osc();
+            try {
+                init_artnet();
+                setup_osc();
+            } catch(const std::exception& e) {
+                cerr << "bbb.artnet.controller: initialization failed: " << e.what() << c74::min::endl;
+            } catch(...) {
+                cerr << "bbb.artnet.controller: initialization failed" << c74::min::endl;
+            }
             return {};
         }
     };
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_osc_timer{this,
         MIN_FUNCTION {
-            if(m_osc_receiver) {
-                m_osc_receiver->update();
+            try {
+                if(m_osc_receiver) {
+                    m_osc_receiver->update();
+                }
+            } catch(const std::exception& e) {
+                cerr << "bbb.artnet.controller: OSC update failed: " << e.what() << c74::min::endl;
+            } catch(...) {
+                cerr << "bbb.artnet.controller: OSC update failed" << c74::min::endl;
             }
             m_osc_timer.delay(10);
             return {};
@@ -290,7 +303,7 @@ private:
 
     std::string get_target_ip_str() const {
         c74::min::symbol tip = target_ip;
-        return tip;
+        return static_cast<const char*>(tip);
     }
 
     void init_artnet() {
@@ -310,22 +323,38 @@ private:
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_forced_timer{this,
         MIN_FUNCTION {
-            if(m_running) {
-                send_all();
-                double interval = 1000.0 / static_cast<double>(framerate);
-                m_forced_timer.delay(interval);
+            try {
+                if(m_running) {
+                    send_all();
+                    double interval = 1000.0 / static_cast<double>(framerate);
+                    m_forced_timer.delay(interval);
+                }
+            } catch(const std::exception& e) {
+                m_running = false;
+                cerr << "bbb.artnet.controller: forced send failed: " << e.what() << c74::min::endl;
+            } catch(...) {
+                m_running = false;
+                cerr << "bbb.artnet.controller: forced send failed" << c74::min::endl;
             }
             return {};
         }
     };
 
     void start_forced_timer() {
-        if(mode == 4) {
-            m_running = true;
-            double interval = 1000.0 / static_cast<double>(framerate);
-            m_forced_timer.delay(interval);
-        } else {
+        try {
+            if(mode == 4) {
+                m_running = true;
+                double interval = 1000.0 / static_cast<double>(framerate);
+                m_forced_timer.delay(interval);
+            } else {
+                m_running = false;
+            }
+        } catch(const std::exception& e) {
             m_running = false;
+            cerr << "bbb.artnet.controller: failed to start forced timer: " << e.what() << c74::min::endl;
+        } catch(...) {
+            m_running = false;
+            cerr << "bbb.artnet.controller: failed to start forced timer" << c74::min::endl;
         }
     }
 
@@ -343,47 +372,55 @@ private:
     }
 
     void send_all() {
-        if(!m_managed_node || !m_managed_node->valid()) return;
+        try {
+            if(!m_managed_node || !m_managed_node->valid()) return;
 
-        bool unicast = is_unicast_mode();
-        std::string tip = get_target_ip_str();
+            bool unicast = is_unicast_mode();
+            std::string tip = get_target_ip_str();
 
-        if(blackout) {
-            std::vector<uint8_t> zeros(512, 0);
-            for(int i = 0; i < num_universes; ++i) {
-                uint16_t port_addr = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
-                if(unicast) {
-                    m_managed_node->send_dmx_unicast(tip.c_str(),
-                        port_addr, 512, zeros.data());
-                } else {
-                    m_managed_node->send_dmx_broadcast(
-                        port_addr, 512, zeros.data());
-                }
-            }
-        } else {
-            for(int i = 0; i < num_universes; ++i) {
-                int offset = i * 512;
-                int length = std::min(512, static_cast<int>(m_buffer.size()) - offset);
-                if(length > 0) {
+            if(blackout) {
+                std::vector<uint8_t> zeros(512, 0);
+                for(int i = 0; i < num_universes; ++i) {
                     uint16_t port_addr = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
                     if(unicast) {
                         m_managed_node->send_dmx_unicast(tip.c_str(),
-                            port_addr,
-                            static_cast<int16_t>(length),
-                            m_buffer.data() + offset);
+                            port_addr, 512, zeros.data());
                     } else {
                         m_managed_node->send_dmx_broadcast(
-                            port_addr,
-                            static_cast<int16_t>(length),
-                            m_buffer.data() + offset);
+                            port_addr, 512, zeros.data());
+                    }
+                }
+            } else {
+                for(int i = 0; i < num_universes; ++i) {
+                    int offset = i * 512;
+                    int length = std::min(512, static_cast<int>(m_buffer.size()) - offset);
+                    if(length > 0) {
+                        uint16_t port_addr = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
+                        if(unicast) {
+                            m_managed_node->send_dmx_unicast(tip.c_str(),
+                                port_addr,
+                                static_cast<int16_t>(length),
+                                m_buffer.data() + offset);
+                        } else {
+                            m_managed_node->send_dmx_broadcast(
+                                port_addr,
+                                static_cast<int16_t>(length),
+                                m_buffer.data() + offset);
+                        }
                     }
                 }
             }
-        }
 
-        m_prev_buffer = m_buffer;
-        m_dirty = false;
-        output.send(c74::min::k_sym_bang);
+            m_prev_buffer = m_buffer;
+            m_dirty = false;
+            output.send(c74::min::k_sym_bang);
+        } catch(const std::exception& e) {
+            m_running = false;
+            cerr << "bbb.artnet.controller: send failed: " << e.what() << c74::min::endl;
+        } catch(...) {
+            m_running = false;
+            cerr << "bbb.artnet.controller: send failed" << c74::min::endl;
+        }
     }
 
     std::shared_ptr<bbb::artnet::managed_node> m_managed_node;
