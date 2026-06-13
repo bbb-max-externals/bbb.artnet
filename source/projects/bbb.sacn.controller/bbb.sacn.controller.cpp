@@ -527,7 +527,7 @@ private:
                 continue;
             }
 
-            int packet_size = 126 + 1 + length;
+            int packet_size = sacn::packet_size_for_data_length(length);
             sendto(m_fd, reinterpret_cast<const char*>(&packet), packet_size, 0,
                 reinterpret_cast<struct sockaddr*>(&address), sizeof(address));
         }

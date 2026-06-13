@@ -235,7 +235,7 @@ private:
             while(m_running) {
                 bbb::net::recv_len_t length = recvfrom(m_fd, reinterpret_cast<char*>(buffer), sizeof(buffer), 0, nullptr, nullptr);
                 if(length <= 0) continue;
-                if(static_cast<size_t>(length) < 126) continue;
+                if(static_cast<int>(length) < sacn::dmx_data_offset) continue;
 
                 const uint8_t acn_id[12] = {0x41,0x53,0x43,0x2D,0x45,0x31,0x2E,0x31,0x37,0x00,0x00,0x00};
                 if(std::memcmp(buffer + 4, acn_id, 12) != 0) continue;
@@ -246,15 +246,20 @@ private:
                 uint32_t framing_vector = ntohl(*reinterpret_cast<const uint32_t*>(buffer + 40));
                 if(framing_vector != 0x00000002) continue;
 
-                uint8_t sequence = buffer[75];
-                uint16_t packet_universe = ntohs(*reinterpret_cast<const uint16_t*>(buffer + 78));
+                uint8_t sequence = buffer[sacn::sequence_offset];
+                uint16_t packet_universe = ntohs(*reinterpret_cast<const uint16_t*>(buffer + sacn::universe_offset));
 
-                uint8_t dmp_vector = buffer[117];
+                uint8_t dmp_vector = buffer[sacn::dmp_vector_offset];
                 if(dmp_vector != 0x02) continue;
 
-                int dmp_data_length = static_cast<int>(length) - 126 - 1;
-                if(dmp_data_length <= 0) continue;
-                int copy_length = std::min(dmp_data_length, 512);
+                uint16_t property_value_count = ntohs(*reinterpret_cast<const uint16_t*>(buffer + sacn::property_value_count_offset));
+                if(property_value_count <= 1) continue;
+
+                int available_data_length = static_cast<int>(length) - sacn::dmx_data_offset;
+                if(available_data_length <= 0) continue;
+
+                int declared_data_length = static_cast<int>(property_value_count) - 1;
+                int copy_length = std::min({declared_data_length, available_data_length, sacn::max_dmx_data_length});
 
                 std::lock_guard<std::mutex> lock(m_mutex);
                 int universe_index = -1;
@@ -272,7 +277,7 @@ private:
 
                 int offset = universe_index * 512;
                 if(offset + copy_length <= static_cast<int>(m_buffer.size())) {
-                    std::memcpy(m_buffer.data() + offset, buffer + 126, copy_length);
+                    std::memcpy(m_buffer.data() + offset, buffer + sacn::dmx_data_offset, copy_length);
                 }
 
                 if(sync_universes && 1 < universe_count) {

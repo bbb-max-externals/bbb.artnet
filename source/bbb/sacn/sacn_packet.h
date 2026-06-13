@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
 #include <string>
@@ -14,6 +15,28 @@
 #endif
 
 namespace sacn {
+
+constexpr int root_pdu_offset = 16;
+constexpr int framing_pdu_offset = 38;
+constexpr int dmp_pdu_offset = 115;
+constexpr int sequence_offset = 111;
+constexpr int universe_offset = 113;
+constexpr int dmp_vector_offset = 117;
+constexpr int property_value_count_offset = 123;
+constexpr int property_values_offset = 125;
+constexpr int dmx_data_offset = 126;
+constexpr int max_dmx_data_length = 512;
+
+inline int clamp_data_length(int length) {
+    if(length < 0) {
+        return 0;
+    }
+    return std::min(length, max_dmx_data_length);
+}
+
+inline int packet_size_for_data_length(int length) {
+    return dmx_data_offset + clamp_data_length(length);
+}
 
 #pragma pack(push, 1)
 
@@ -37,10 +60,18 @@ struct packet {
     uint8_t address_type;
     uint16_t first_property;
     uint16_t address_increment;
+    uint16_t property_value_count;
     uint8_t property_values[513];
 };
 
 #pragma pack(pop)
+
+static_assert(offsetof(packet, sequence) == sequence_offset, "sACN sequence offset mismatch");
+static_assert(offsetof(packet, universe) == universe_offset, "sACN universe offset mismatch");
+static_assert(offsetof(packet, dmp_vector) == dmp_vector_offset, "sACN DMP vector offset mismatch");
+static_assert(offsetof(packet, property_value_count) == property_value_count_offset, "sACN property count offset mismatch");
+static_assert(offsetof(packet, property_values) == property_values_offset, "sACN property values offset mismatch");
+static_assert(sizeof(packet) == dmx_data_offset + max_dmx_data_length, "sACN packet size mismatch");
 
 inline std::array<uint8_t, 16> generate_cid() {
     std::array<uint8_t, 16> cid;
@@ -58,16 +89,20 @@ inline void init_packet(packet& p, const uint8_t cid[16],
                         uint8_t sequence, uint16_t universe,
                         const uint8_t* data, int length)
 {
+    int data_length = clamp_data_length(length);
+    int packet_size = packet_size_for_data_length(data_length);
+    int property_value_count = data_length + 1;
+
     std::memset(&p, 0, sizeof(p));
     p.preamble_size[0] = 0x00; p.preamble_size[1] = 0x10;
     p.postamble_size[0] = 0x00; p.postamble_size[1] = 0x00;
     const uint8_t acn_id[12] = {0x41,0x53,0x43,0x2D,0x45,0x31,0x2E,0x31,0x37,0x00,0x00,0x00};
     std::memcpy(p.acn_packet_id, acn_id, 12);
-    uint16_t root_len = static_cast<uint16_t>(sizeof(packet) - 16);
+    uint16_t root_len = static_cast<uint16_t>(packet_size - root_pdu_offset);
     p.flags_length1 = htons(0x7000 | root_len);
     p.root_vector = htonl(0x00000004);
     std::memcpy(p.cid, cid, 16);
-    uint16_t framing_len = static_cast<uint16_t>(sizeof(packet) - 38);
+    uint16_t framing_len = static_cast<uint16_t>(packet_size - framing_pdu_offset);
     p.flags_length2 = htons(0x7000 | framing_len);
     p.framing_vector = htonl(0x00000002);
     std::strncpy(reinterpret_cast<char*>(p.source_name), source_name, 63);
@@ -75,14 +110,15 @@ inline void init_packet(packet& p, const uint8_t cid[16],
     p.priority = priority;
     p.sequence = sequence;
     p.universe = htons(universe);
-    uint16_t dmp_len = static_cast<uint16_t>(length + 11);
+    uint16_t dmp_len = static_cast<uint16_t>(packet_size - dmp_pdu_offset);
     p.flags_length3 = htons(0x7000 | dmp_len);
     p.dmp_vector = 0x02;
     p.address_type = 0xA1;
     p.first_property = htons(0x0000);
     p.address_increment = htons(0x0001);
+    p.property_value_count = htons(static_cast<uint16_t>(property_value_count));
     p.property_values[0] = 0x00;
-    std::memcpy(p.property_values + 1, data, std::min(length, 512));
+    std::memcpy(p.property_values + 1, data, static_cast<size_t>(data_length));
 }
 
 struct multicast_addr {
