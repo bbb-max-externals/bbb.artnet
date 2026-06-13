@@ -49,7 +49,13 @@ public:
 
     c74::min::attribute<int> num_universes{this, "num_universes", 1,
         c74::min::description{"Number of universes to receive."},
-        c74::min::range{1, 32}
+        c74::min::range{1, 32},
+        c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
+            if(!args.empty()) {
+                resize_universe_buffers(static_cast<int>(args[0]));
+            }
+            return args;
+        }}
     };
 
     c74::min::attribute<int> num_channels{this, "num_channels", 512,
@@ -119,9 +125,7 @@ public:
     };
 
     artnet_node_obj(const c74::min::atoms& args = {}) {
-        m_buffer.resize(512 * num_universes, 0);
-        m_prev_buffer.resize(512 * num_universes, 0);
-        m_received_universes.resize(num_universes, false);
+        resize_universe_buffers(static_cast<int>(num_universes));
         m_init_timer.delay(0);
     }
 
@@ -148,6 +152,15 @@ public:
     };
 
 private:
+    void resize_universe_buffers(int universe_count) {
+        std::lock_guard<std::mutex> lock(m_mutex);
+        int clamped_universe_count = std::max(1, universe_count);
+        size_t buffer_size = 512 * static_cast<size_t>(clamped_universe_count);
+        m_buffer.resize(buffer_size, 0);
+        m_prev_buffer.resize(buffer_size, 0);
+        m_received_universes.assign(static_cast<size_t>(clamped_universe_count), false);
+    }
+
     std::string m_bip_str;
 
     const char* resolve_bind_ip() {
