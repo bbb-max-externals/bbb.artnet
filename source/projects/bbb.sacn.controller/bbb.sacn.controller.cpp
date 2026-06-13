@@ -60,17 +60,19 @@ public:
         c74::min::description{"Send all zeros (blackout)."}
     };
 
-    c74::min::attribute<c74::min::symbol> mode{this, "mode", "automatic",
-        c74::min::description{"Output mode: automatic, bang, update, change, forced."},
-        c74::min::range{"automatic", "bang", "update", "change", "forced"},
-        c74::min::setter{[this](const c74::min::atoms& args, c74::min::symbol) -> c74::min::atoms {
+    c74::min::attribute<int> mode{this, "mode", 0,
+        c74::min::description{"Output mode: 0=automatic, 1=bang, 2=update, 3=change, 4=forced."},
+        c74::min::enum_map{"automatic", "bang", "update", "change", "forced"},
+        c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
+            c74::min::atoms normalized_args = args;
             guard_message("mode", [&]() {
                 if(m_constructed && !args.empty()) {
-                    c74::min::symbol mode_value{args[0]};
+                    int mode_value = mode_atom_to_int(args[0]);
+                    normalized_args = c74::min::atoms{mode_value};
                     start_forced_timer_for_mode(mode_value);
                 }
             });
-            return args;
+            return normalized_args;
         }}
     };
 
@@ -94,6 +96,13 @@ public:
 
     c74::min::attribute<c74::min::symbol> bind_ip{this, "bind_ip", "",
         c74::min::description{"Local interface IP for outgoing sACN (empty = auto/default route)."}
+    };
+
+    c74::min::attribute<int> origin{this, "origin", 1,
+        c74::min::description{"Channel index origin: 1 = 1-based (default), 0 = 0-based."},
+        c74::min::range{0, 1},
+        c74::min::style::enum_index,
+        c74::min::category{"DMX"}
     };
 
     c74::min::attribute<bool> unicast{this, "unicast", false,
@@ -177,14 +186,14 @@ public:
         }
     };
 
-    c74::min::message<> channel_msg{this, "channel", "Set a single DMX channel (1-based index).",
+    c74::min::message<> channel_msg{this, "channel", "Set a single DMX channel.",
         MIN_FUNCTION {
             guard_message("channel", [&]() {
                 if(args.size() < 2) {
                     return;
                 }
                 std::lock_guard<std::mutex> lock(m_mutex);
-                int index = static_cast<int>(args[0]) - 1;
+                int index = static_cast<int>(args[0]) - static_cast<int>(origin);
                 int value = static_cast<int>(args[1]);
                 if(0 <= index && static_cast<size_t>(index) < m_buffer.size()) {
                     m_buffer[index] = static_cast<uint8_t>(std::max(0, std::min(255, value)));
@@ -229,14 +238,14 @@ public:
         }
     };
 
-    c74::min::message<> set_offset_msg{this, "set_offset", "Store DMX values at offset (0-based) without sending.",
+    c74::min::message<> set_offset_msg{this, "set_offset", "Store DMX values at offset without sending.",
         MIN_FUNCTION {
             guard_message("set_offset", [&]() {
                 if(args.empty()) {
                     return;
                 }
                 std::lock_guard<std::mutex> lock(m_mutex);
-                int offset = static_cast<int>(args[0]);
+                int offset = static_cast<int>(args[0]) - static_cast<int>(origin);
                 for(size_t i = 1; i < args.size(); ++i) {
                     size_t index = static_cast<size_t>(offset + static_cast<int>(i) - 1);
                     if(index < m_buffer.size()) {
@@ -296,7 +305,7 @@ private:
 
         configure_bind_interface();
 
-        c74::min::symbol mode_value = mode;
+        int mode_value = mode;
         start_forced_timer_for_mode(mode_value);
     }
 
@@ -441,8 +450,22 @@ private:
              << c74::min::endl;
     }
 
-    void start_forced_timer_for_mode(c74::min::symbol mode_value) {
-        if(mode_value == "forced") {
+    int mode_atom_to_int(const c74::min::atom& atom) const {
+        if(atom.a_type == c74::max::A_SYM) {
+            c74::min::symbol value{atom};
+            if(value == "automatic") return 0;
+            if(value == "bang") return 1;
+            if(value == "update") return 2;
+            if(value == "change") return 3;
+            if(value == "forced") return 4;
+        }
+
+        int mode_value = static_cast<int>(atom);
+        return std::max(0, std::min(4, mode_value));
+    }
+
+    void start_forced_timer_for_mode(int mode_value) {
+        if(mode_value == 4) {
             m_running = true;
             double interval = 1000.0 / static_cast<double>(framerate);
             m_forced_timer.delay(interval);
@@ -452,11 +475,12 @@ private:
     }
 
     void handle_mode_send() {
-        if(mode == c74::min::symbol("automatic")) {
+        int mode_value = mode;
+        if(mode_value == 0) {
             send_all();
-        } else if(mode == c74::min::symbol("update")) {
+        } else if(mode_value == 2) {
             send_all();
-        } else if(mode == c74::min::symbol("change")) {
+        } else if(mode_value == 3) {
             if(m_buffer != m_prev_buffer) {
                 send_all();
             }

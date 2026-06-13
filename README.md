@@ -131,12 +131,13 @@ Sends DMX data via sACN (E1.31) protocol.
 | `num_channels` | 512 | Channels per universe |
 | `sync_universes` | true | Sync all universes on change |
 | `blackout` | false | Send all zeros |
-| `mode` | automatic | Output mode: automatic, bang, update, change, forced |
+| `mode` | 0 | Output mode: 0=automatic, 1=bang, 2=update, 3=change, 4=forced |
 | `framerate` | 40.0 | Framerate for forced mode |
 | `priority` | 100 | sACN priority (0–200) |
 | `source_name` | bbb.sacn.controller | sACN source name |
 | `target_ip` | "" | Destination IP (empty = per-universe multicast, unicast addr = unicast) |
 | `bind_ip` | "" | Local interface IP for outgoing sACN (sets multicast interface) |
+| `origin` | 1 | Channel index origin: 1=1-based, 0=0-based |
 | `unicast` | false | Legacy compatibility: use `unicast_ip` when `target_ip` is empty |
 | `unicast_ip` | 127.0.0.1 | Legacy destination IP for unicast |
 
