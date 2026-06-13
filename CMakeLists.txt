@@ -13,16 +13,8 @@ enable_testing()
 set(BBB_ARTNET_BUILD_TESTS ON CACHE BOOL "Build bbb-artnet unit tests" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/bbb-artnet)
 
-add_executable(bbb_sacn_packet_tests
-    tests/sacn_packet_tests.cpp
-)
-target_include_directories(bbb_sacn_packet_tests PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/source
-)
-if(WIN32)
-    target_link_libraries(bbb_sacn_packet_tests PRIVATE ws2_32)
-endif()
-add_test(NAME bbb_sacn_packet_tests COMMAND bbb_sacn_packet_tests)
+set(BBB_SACN_BUILD_TESTS ON CACHE BOOL "Build bbb-sacn unit tests" FORCE)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/bbb-sacn)
 
 add_custom_target(generate_version ALL
     COMMAND ${CMAKE_COMMAND}

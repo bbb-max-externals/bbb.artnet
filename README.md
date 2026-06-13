@@ -149,6 +149,8 @@ Sends DMX data via sACN (E1.31) protocol.
 - `@bind_ip A.B.C.D` selects the outgoing local interface and is also applied as `IP_MULTICAST_IF` for multicast.
 - Example forced unicast for universes 1-13: `bbb.sacn.controller @target_ip 127.0.0.1 @num_universes 13 @mode 4`.
 
+The sACN packet encode/decode layer lives in [`2bbb/bbb-sacn`](https://github.com/2bbb/bbb-sacn) and is consumed here as a submodule.
+
 ### bbb.sacn.node
 
 Receives DMX data via sACN (E1.31) protocol.
@@ -197,6 +199,7 @@ bbb.artnet/
 ├── CMakeLists.txt
 ├── deps/
 │   ├── bbb-artnet/       # Art-Net protocol/node helper library (submodule)
+│   ├── bbb-sacn/         # sACN packet helper library (submodule)
 │   ├── min-api/          # Max min-api (submodule)
 │   └── osc/              # bbb-osc (submodule) + asio
 ├── source/
@@ -218,6 +221,7 @@ This project was inspired by imp.dmx by David Butler. His work on DMX over Art-N
 | [min-api](https://github.com/Cycling74/min-api) | Cycling '74 | MIT |
 | [max-sdk-base](https://github.com/Cycling74/max-sdk-base) | Cycling '74 | MIT |
 | [bbb-artnet](https://github.com/2bbb/bbb-artnet) | 2bit | MIT |
+| [bbb-sacn](https://github.com/2bbb/bbb-sacn) | 2bit | MIT |
 | [bbb-osc](https://github.com/2bbb/bbb-osc) | 2bit | MIT |
 | [asio](https://github.com/chriskohlhoff/asio) | Christopher M. Kohlhoff | BSL-1.0 |
 | [oscpp](https://github.com/kaoskorobase/oscpp) | kaoskorobase | MIT |

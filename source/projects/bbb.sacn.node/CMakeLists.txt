@@ -6,6 +6,7 @@ include(${C74_MIN_API_DIR}/script/min-pretarget.cmake)
 include_directories(
     "${C74_INCLUDES}"
     "${CMAKE_CURRENT_SOURCE_DIR}/../../../source"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../../../deps/bbb-sacn/include"
 )
 
 set(SOURCE_FILES
