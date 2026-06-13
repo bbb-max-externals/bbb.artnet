@@ -2,6 +2,7 @@
 #include <bbb/artnet/artnet_node_manager.hpp>
 #include <bbb/version.h>
 #include <cstring>
+#include <exception>
 #include <string>
 #include <vector>
 #include <deque>
@@ -136,16 +137,20 @@ public:
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_init_timer{this,
         MIN_FUNCTION {
-            init_artnet();
-            m_timer.delay(50);
+            guard_message("initialization", [&]() {
+                init_artnet();
+                m_timer.delay(50);
+            });
             return {};
         }
     };
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_timer{this,
         MIN_FUNCTION {
-            process_timeout();
-            drain_queue();
+            guard_message("timer", [&]() {
+                process_timeout();
+                drain_queue();
+            });
             m_timer.delay(50);
             return {};
         }
@@ -167,148 +172,188 @@ public:
 
     c74::min::message<> discover_msg{this, "discover", "Send ArtTodRequest to discover RDM devices.",
         MIN_FUNCTION {
-            if(m_managed_node && m_managed_node->valid())
-                m_managed_node->send_tod_request(static_cast<uint8_t>(net));
+            guard_message("discover", [&]() {
+                if(m_managed_node && m_managed_node->valid()) {
+                    m_managed_node->send_tod_request(static_cast<uint8_t>(net));
+                }
+            });
             return {};
         }
     };
 
     c74::min::message<> tod_msg{this, "tod", "Alias for discover.",
         MIN_FUNCTION {
-            if(m_managed_node && m_managed_node->valid())
-                m_managed_node->send_tod_request(static_cast<uint8_t>(net));
+            guard_message("tod", [&]() {
+                if(m_managed_node && m_managed_node->valid()) {
+                    m_managed_node->send_tod_request(static_cast<uint8_t>(net));
+                }
+            });
             return {};
         }
     };
 
     c74::min::message<> identify_msg{this, "identify", "GET/SET IDENTIFY_DEVICE (UID [0/1]).",
         MIN_FUNCTION {
-            rdm_uid uid;
-            if(!parse_uid_arg(args, uid)) return {};
-            if(args.size() > 1) {
-                uint8_t val = static_cast<uint8_t>(static_cast<int>(args[1]) ? 1 : 0);
-                send_rdm(uid, CC_SET, PID_IDENTIFY_DEVICE, &val, 1);
-            } else {
-                send_rdm(uid, CC_GET, PID_IDENTIFY_DEVICE, nullptr, 0);
-            }
+            guard_message("identify", [&]() {
+                rdm_uid uid;
+                if(!parse_uid_arg(args, uid)) return;
+                if(args.size() > 1) {
+                    uint8_t value = static_cast<uint8_t>(static_cast<int>(args[1]) ? 1 : 0);
+                    send_rdm(uid, CC_SET, PID_IDENTIFY_DEVICE, &value, 1);
+                } else {
+                    send_rdm(uid, CC_GET, PID_IDENTIFY_DEVICE, nullptr, 0);
+                }
+            });
             return {};
         }
     };
 
     c74::min::message<> start_address_msg{this, "start_address", "GET/SET DMX_START_ADDRESS (UID [addr]).",
         MIN_FUNCTION {
-            rdm_uid uid;
-            if(!parse_uid_arg(args, uid)) return {};
-            if(args.size() > 1) {
-                int addr = static_cast<int>(args[1]);
-                uint8_t data[2] = {
-                    static_cast<uint8_t>((addr >> 8) & 0xFF),
-                    static_cast<uint8_t>(addr & 0xFF)
-                };
-                send_rdm(uid, CC_SET, PID_DMX_START_ADDRESS, data, 2);
-            } else {
-                send_rdm(uid, CC_GET, PID_DMX_START_ADDRESS, nullptr, 0);
-            }
+            guard_message("start_address", [&]() {
+                rdm_uid uid;
+                if(!parse_uid_arg(args, uid)) return;
+                if(args.size() > 1) {
+                    int address = static_cast<int>(args[1]);
+                    uint8_t data[2] = {
+                        static_cast<uint8_t>((address >> 8) & 0xFF),
+                        static_cast<uint8_t>(address & 0xFF)
+                    };
+                    send_rdm(uid, CC_SET, PID_DMX_START_ADDRESS, data, 2);
+                } else {
+                    send_rdm(uid, CC_GET, PID_DMX_START_ADDRESS, nullptr, 0);
+                }
+            });
             return {};
         }
     };
 
     c74::min::message<> label_msg{this, "label", "GET/SET DEVICE_LABEL (UID [string]).",
         MIN_FUNCTION {
-            rdm_uid uid;
-            if(!parse_uid_arg(args, uid)) return {};
-            if(args.size() > 1) {
-                std::string lbl(static_cast<const char*>(c74::min::symbol(args[1])));
-                uint8_t len = static_cast<uint8_t>(std::min(lbl.size(), static_cast<size_t>(32)));
-                send_rdm(uid, CC_SET, PID_DEVICE_LABEL,
-                    reinterpret_cast<const uint8_t*>(lbl.c_str()), len);
-            } else {
-                send_rdm(uid, CC_GET, PID_DEVICE_LABEL, nullptr, 0);
-            }
+            guard_message("label", [&]() {
+                rdm_uid uid;
+                if(!parse_uid_arg(args, uid)) return;
+                if(args.size() > 1) {
+                    std::string label(static_cast<const char*>(c74::min::symbol(args[1])));
+                    uint8_t length = static_cast<uint8_t>(std::min(label.size(), static_cast<size_t>(32)));
+                    send_rdm(uid, CC_SET, PID_DEVICE_LABEL,
+                        reinterpret_cast<const uint8_t*>(label.c_str()), length);
+                } else {
+                    send_rdm(uid, CC_GET, PID_DEVICE_LABEL, nullptr, 0);
+                }
+            });
             return {};
         }
     };
 
     c74::min::message<> device_info_msg{this, "device_info", "GET DEVICE_INFO (UID).",
         MIN_FUNCTION {
-            rdm_uid uid;
-            if(!parse_uid_arg(args, uid)) return {};
-            send_rdm(uid, CC_GET, PID_DEVICE_INFO, nullptr, 0);
+            guard_message("device_info", [&]() {
+                rdm_uid uid;
+                if(!parse_uid_arg(args, uid)) return;
+                send_rdm(uid, CC_GET, PID_DEVICE_INFO, nullptr, 0);
+            });
             return {};
         }
     };
 
     c74::min::message<> manufacturer_label_msg{this, "manufacturer_label", "GET MANUFACTURER_LABEL (UID).",
         MIN_FUNCTION {
-            rdm_uid uid;
-            if(!parse_uid_arg(args, uid)) return {};
-            send_rdm(uid, CC_GET, PID_MANUFACTURER_LABEL, nullptr, 0);
+            guard_message("manufacturer_label", [&]() {
+                rdm_uid uid;
+                if(!parse_uid_arg(args, uid)) return;
+                send_rdm(uid, CC_GET, PID_MANUFACTURER_LABEL, nullptr, 0);
+            });
             return {};
         }
     };
 
     c74::min::message<> software_version_msg{this, "software_version", "GET SOFTWARE_VERSION_LABEL (UID).",
         MIN_FUNCTION {
-            rdm_uid uid;
-            if(!parse_uid_arg(args, uid)) return {};
-            send_rdm(uid, CC_GET, PID_SOFTWARE_VERSION_LABEL, nullptr, 0);
+            guard_message("software_version", [&]() {
+                rdm_uid uid;
+                if(!parse_uid_arg(args, uid)) return;
+                send_rdm(uid, CC_GET, PID_SOFTWARE_VERSION_LABEL, nullptr, 0);
+            });
             return {};
         }
     };
 
     c74::min::message<> get_msg{this, "get", "Generic RDM GET (UID PID).",
         MIN_FUNCTION {
-            if(args.size() < 2) return {};
-            rdm_uid uid;
-            if(!parse_uid_arg(args, uid)) return {};
-            uint16_t pid = static_cast<uint16_t>(static_cast<int>(args[1]));
-            send_rdm(uid, CC_GET, pid, nullptr, 0);
+            guard_message("get", [&]() {
+                if(args.size() < 2) return;
+                rdm_uid uid;
+                if(!parse_uid_arg(args, uid)) return;
+                uint16_t pid = static_cast<uint16_t>(static_cast<int>(args[1]));
+                send_rdm(uid, CC_GET, pid, nullptr, 0);
+            });
             return {};
         }
     };
 
     c74::min::message<> set_msg{this, "set", "Generic RDM SET (UID PID val1 val2 ...).",
         MIN_FUNCTION {
-            if(args.size() < 3) return {};
-            rdm_uid uid;
-            if(!parse_uid_arg(args, uid)) return {};
-            uint16_t pid = static_cast<uint16_t>(static_cast<int>(args[1]));
-            std::vector<uint8_t> data;
-            for(size_t i = 2; i < args.size(); ++i) {
-                data.push_back(static_cast<uint8_t>(static_cast<int>(args[i]) & 0xFF));
-            }
-            send_rdm(uid, CC_SET, pid, data.data(), static_cast<uint8_t>(data.size()));
+            guard_message("set", [&]() {
+                if(args.size() < 3) return;
+                rdm_uid uid;
+                if(!parse_uid_arg(args, uid)) return;
+                uint16_t pid = static_cast<uint16_t>(static_cast<int>(args[1]));
+                std::vector<uint8_t> data;
+                for(size_t i = 2; i < args.size(); ++i) {
+                    data.push_back(static_cast<uint8_t>(static_cast<int>(args[i]) & 0xFF));
+                }
+                send_rdm(uid, CC_SET, pid, data.data(), static_cast<uint8_t>(data.size()));
+            });
             return {};
         }
     };
 
     c74::min::message<> mute_msg{this, "mute", "Send DISC_MUTE (UID).",
         MIN_FUNCTION {
-            rdm_uid uid;
-            if(!parse_uid_arg(args, uid)) return {};
-            send_rdm(uid, CC_GET, PID_DISC_MUTE, nullptr, 0);
+            guard_message("mute", [&]() {
+                rdm_uid uid;
+                if(!parse_uid_arg(args, uid)) return;
+                send_rdm(uid, CC_GET, PID_DISC_MUTE, nullptr, 0);
+            });
             return {};
         }
     };
 
     c74::min::message<> unmute_msg{this, "unmute", "Send DISC_UN_MUTE broadcast.",
         MIN_FUNCTION {
-            rdm_uid broadcast;
-            std::memset(broadcast.b, 0xFF, 6);
-            send_rdm(broadcast, CC_GET, PID_DISC_UN_MUTE, nullptr, 0);
+            guard_message("unmute", [&]() {
+                rdm_uid broadcast;
+                std::memset(broadcast.b, 0xFF, 6);
+                send_rdm(broadcast, CC_GET, PID_DISC_UN_MUTE, nullptr, 0);
+            });
             return {};
         }
     };
 
     c74::min::message<> maxclass_setup{this, "maxclass_setup",
         MIN_FUNCTION {
-            cout << "bbb.artnet.rdm v" BBB_ARTNET_VERSION << c74::min::endl;
+            guard_message("maxclass_setup", [&]() {
+                cout << "bbb.artnet.rdm v" BBB_ARTNET_VERSION << c74::min::endl;
+            });
             return {};
         }
     };
 
 private:
+    template <typename function_type>
+    void guard_message(const char* name, function_type&& function) {
+        try {
+            function();
+        } catch(const std::exception& e) {
+            cerr << "bbb.artnet.rdm: " << name << " failed: " << e.what() << c74::min::endl;
+        } catch(...) {
+            cerr << "bbb.artnet.rdm: " << name << " failed" << c74::min::endl;
+        }
+    }
+
     std::string m_bip_str;
+
 
     const char* resolve_bind_ip() {
         c74::min::symbol bip = bind_ip;
@@ -360,7 +405,10 @@ private:
         rdm_cb.type = bbb::artnet::callback_type::rdm_raw;
         rdm_cb.owner = this;
         rdm_cb.rdm_fn = [this](int address, uint8_t* rdm, int length) {
-            handle_rdm(address, rdm, length);
+            try {
+                handle_rdm(address, rdm, length);
+            } catch(...) {
+            }
         };
         m_managed_node->add_callback(rdm_cb);
 
@@ -368,7 +416,10 @@ private:
         tod_cb.type = bbb::artnet::callback_type::tod_data;
         tod_cb.owner = this;
         tod_cb.tod_fn = [this](const bbb::artnet::protocol::tod_data& tod) {
-            handle_tod(tod);
+            try {
+                handle_tod(tod);
+            } catch(...) {
+            }
         };
         m_managed_node->add_callback(tod_cb);
 

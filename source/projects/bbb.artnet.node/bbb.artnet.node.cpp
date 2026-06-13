@@ -6,6 +6,7 @@
 #include <bbb/osc/asio_receiver.hpp>
 #include <bbb/osc/message.hpp>
 #include <cstring>
+#include <exception>
 #include <vector>
 #include <mutex>
 #include <atomic>
@@ -51,9 +52,11 @@ public:
         c74::min::description{"Number of universes to receive."},
         c74::min::range{1, 32},
         c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
-            if(!args.empty()) {
-                resize_universe_buffers(static_cast<int>(args[0]));
-            }
+            guard_message("num_universes", [&]() {
+                if(!args.empty()) {
+                    resize_universe_buffers(static_cast<int>(args[0]));
+                }
+            });
             return args;
         }}
     };
@@ -100,26 +103,32 @@ public:
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_init_timer{this,
         MIN_FUNCTION {
-            init_artnet();
-            setup_osc();
+            guard_message("initialization", [&]() {
+                init_artnet();
+                setup_osc();
+            });
             return {};
         }
     };
 
     c74::min::timer<c74::min::timer_options::defer_delivery> m_osc_timer{this,
         MIN_FUNCTION {
-            if(m_osc_receiver) {
-                m_osc_receiver->update();
-            }
+            guard_message("OSC update", [&]() {
+                if(m_osc_receiver) {
+                    m_osc_receiver->update();
+                }
+            });
             m_osc_timer.delay(10);
             return {};
         }
     };
 
-    c74::min::timer<c74::min::timer_options::defer_delivery> m_output_timer{this,
+    c74::min::queue<> m_output_queue{this,
         MIN_FUNCTION {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            output_data();
+            guard_message("queued output", [&]() {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                output_data();
+            });
             return {};
         }
     };
@@ -138,20 +147,35 @@ public:
 
     c74::min::message<> bang_msg{this, "bang", "Output current data in bang mode.",
         MIN_FUNCTION {
-            std::lock_guard<std::mutex> lock(m_mutex);
-            output_data();
+            guard_message("bang", [&]() {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                output_data();
+            });
             return {};
         }
     };
 
     c74::min::message<> maxclass_setup{this, "maxclass_setup",
         MIN_FUNCTION {
-            cout << "bbb.artnet.node v" BBB_ARTNET_VERSION << c74::min::endl;
+            guard_message("maxclass_setup", [&]() {
+                cout << "bbb.artnet.node v" BBB_ARTNET_VERSION << c74::min::endl;
+            });
             return {};
         }
     };
 
 private:
+    template <typename function_type>
+    void guard_message(const char* name, function_type&& function) {
+        try {
+            function();
+        } catch(const std::exception& e) {
+            cerr << "bbb.artnet.node: " << name << " failed: " << e.what() << c74::min::endl;
+        } catch(...) {
+            cerr << "bbb.artnet.node: " << name << " failed" << c74::min::endl;
+        }
+    }
+
     void resize_universe_buffers(int universe_count) {
         std::lock_guard<std::mutex> lock(m_mutex);
         int clamped_universe_count = std::max(1, universe_count);
@@ -187,7 +211,10 @@ private:
         cb.type = bbb::artnet::callback_type::dmx;
         cb.owner = this;
         cb.dmx_fn = [this](const uint8_t* data, int length, int universe_addr) {
-            handle_dmx(data, length, universe_addr);
+            try {
+                handle_dmx(data, length, universe_addr);
+            } catch(...) {
+            }
         };
         m_managed_node->add_callback(cb);
         m_managed_node->retain();
@@ -233,10 +260,10 @@ private:
     void handle_mode_output() {
         int m = mode;
         if(m == 0 || m == 1) {
-            m_output_timer.delay(0);
+            m_output_queue.set();
         } else if(m == 3) {
             if(m_buffer != m_prev_buffer) {
-                m_output_timer.delay(0);
+                m_output_queue.set();
             }
         }
     }
