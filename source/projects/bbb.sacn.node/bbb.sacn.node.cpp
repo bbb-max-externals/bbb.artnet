@@ -238,21 +238,21 @@ private:
                 if(static_cast<int>(length) < sacn::dmx_data_offset) continue;
 
                 const uint8_t acn_id[12] = {0x41,0x53,0x43,0x2D,0x45,0x31,0x2E,0x31,0x37,0x00,0x00,0x00};
-                if(std::memcmp(buffer + 4, acn_id, 12) != 0) continue;
+                if(std::memcmp(buffer + sacn::acn_packet_id_offset, acn_id, 12) != 0) continue;
 
-                uint32_t root_vector = ntohl(*reinterpret_cast<const uint32_t*>(buffer + 18));
+                uint32_t root_vector = sacn::read_be32(buffer, sacn::root_vector_offset);
                 if(root_vector != 0x00000004) continue;
 
-                uint32_t framing_vector = ntohl(*reinterpret_cast<const uint32_t*>(buffer + 40));
+                uint32_t framing_vector = sacn::read_be32(buffer, sacn::framing_vector_offset);
                 if(framing_vector != 0x00000002) continue;
 
                 uint8_t sequence = buffer[sacn::sequence_offset];
-                uint16_t packet_universe = ntohs(*reinterpret_cast<const uint16_t*>(buffer + sacn::universe_offset));
+                uint16_t packet_universe = sacn::read_be16(buffer, sacn::universe_offset);
 
                 uint8_t dmp_vector = buffer[sacn::dmp_vector_offset];
                 if(dmp_vector != 0x02) continue;
 
-                uint16_t property_value_count = ntohs(*reinterpret_cast<const uint16_t*>(buffer + sacn::property_value_count_offset));
+                uint16_t property_value_count = sacn::read_be16(buffer, sacn::property_value_count_offset);
                 if(property_value_count <= 1) continue;
 
                 int available_data_length = static_cast<int>(length) - sacn::dmx_data_offset;

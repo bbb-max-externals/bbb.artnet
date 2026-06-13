@@ -16,7 +16,7 @@ Sends DMX data via Art-Net protocol. Supports broadcast and unicast.
 - `list` — set DMX values from a list (0–255)
 - `bang` — trigger send (in bang mode)
 - `channel INDEX VALUE` — set a single channel (1-based by default)
-- `setchannel INDEX VALUE` — set without sending
+- `setchannel INDEX VALUE` — set without sending (uses `origin`)
 - `set V0 V1 ...` — store values without sending
 - `set_offset OFFSET V0 V1 ...` — store values at offset (1-based by default)
 - `dump` — output current DMX buffer as list from outlet
@@ -119,7 +119,7 @@ Sends DMX data via sACN (E1.31) protocol.
 - `list` — set DMX values from a list
 - `bang` — trigger send (in bang mode)
 - `channel INDEX VALUE` — set a single channel
-- `setchannel INDEX VALUE` — set without sending
+- `setchannel INDEX VALUE` — set without sending (uses `origin`)
 - `set V0 V1 ...` — store values without sending
 - `set_offset OFFSET V0 V1 ...` — store values at offset
 
@@ -135,11 +135,19 @@ Sends DMX data via sACN (E1.31) protocol.
 | `framerate` | 40.0 | Framerate for forced mode |
 | `priority` | 100 | sACN priority (0–200) |
 | `source_name` | bbb.sacn.controller | sACN source name |
-| `target_ip` | "" | Destination IP (empty = per-universe multicast, unicast addr = unicast) |
-| `bind_ip` | "" | Local interface IP for outgoing sACN (sets multicast interface) |
+| `target_ip` | "" | Destination IP (empty = per-universe multicast, unicast addr = unicast, multicast addr = explicit multicast) |
+| `bind_ip` | "" | Local interface IP for outgoing sACN (binds socket and sets multicast interface) |
 | `origin` | 1 | Channel index origin: 1=1-based, 0=0-based |
 | `unicast` | false | Legacy compatibility: use `unicast_ip` when `target_ip` is empty |
 | `unicast_ip` | 127.0.0.1 | Legacy destination IP for unicast |
+
+**sACN destination behavior:**
+- sACN uses UDP port `5568`, not Art-Net's UDP port `6454`. In Wireshark, use `udp.port == 5568`; Art-Net packets show as `ArtDMX`, sACN/E1.31 packets do not.
+- `@target_ip ""` sends each universe to its standard multicast address `239.255.<universe_hi>.<universe_lo>`.
+- `@target_ip 127.0.0.1` or another unicast address sends every configured universe to that one address.
+- `@target_ip 239.255.0.13` sends every configured universe to that explicit multicast address; normally leave `target_ip` empty for per-universe multicast.
+- `@bind_ip A.B.C.D` selects the outgoing local interface and is also applied as `IP_MULTICAST_IF` for multicast.
+- Example forced unicast for universes 1-13: `bbb.sacn.controller @target_ip 127.0.0.1 @num_universes 13 @mode 4`.
 
 ### bbb.sacn.node
 

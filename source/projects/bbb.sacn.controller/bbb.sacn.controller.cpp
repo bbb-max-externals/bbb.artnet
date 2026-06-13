@@ -212,7 +212,7 @@ public:
                     return;
                 }
                 std::lock_guard<std::mutex> lock(m_mutex);
-                int index = static_cast<int>(args[0]) - 1;
+                int index = static_cast<int>(args[0]) - static_cast<int>(origin);
                 int value = static_cast<int>(args[1]);
                 if(0 <= index && static_cast<size_t>(index) < m_buffer.size()) {
                     m_buffer[index] = static_cast<uint8_t>(std::max(0, std::min(255, value)));

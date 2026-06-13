@@ -7,6 +7,7 @@
 #include <array>
 #include <vector>
 #include <random>
+#include <algorithm>
 
 #ifdef _WIN32
 #include <winsock2.h>
@@ -16,8 +17,11 @@
 
 namespace sacn {
 
+constexpr int acn_packet_id_offset = 4;
 constexpr int root_pdu_offset = 16;
+constexpr int root_vector_offset = 18;
 constexpr int framing_pdu_offset = 38;
+constexpr int framing_vector_offset = 40;
 constexpr int dmp_pdu_offset = 115;
 constexpr int sequence_offset = 111;
 constexpr int universe_offset = 113;
@@ -36,6 +40,18 @@ inline int clamp_data_length(int length) {
 
 inline int packet_size_for_data_length(int length) {
     return dmx_data_offset + clamp_data_length(length);
+}
+
+inline uint16_t read_be16(const uint8_t* buffer, int offset) {
+    uint16_t value{0};
+    std::memcpy(&value, buffer + offset, sizeof(value));
+    return ntohs(value);
+}
+
+inline uint32_t read_be32(const uint8_t* buffer, int offset) {
+    uint32_t value{0};
+    std::memcpy(&value, buffer + offset, sizeof(value));
+    return ntohl(value);
 }
 
 #pragma pack(push, 1)
@@ -67,6 +83,9 @@ struct packet {
 #pragma pack(pop)
 
 static_assert(offsetof(packet, sequence) == sequence_offset, "sACN sequence offset mismatch");
+static_assert(offsetof(packet, acn_packet_id) == acn_packet_id_offset, "sACN ACN packet identifier offset mismatch");
+static_assert(offsetof(packet, root_vector) == root_vector_offset, "sACN root vector offset mismatch");
+static_assert(offsetof(packet, framing_vector) == framing_vector_offset, "sACN framing vector offset mismatch");
 static_assert(offsetof(packet, universe) == universe_offset, "sACN universe offset mismatch");
 static_assert(offsetof(packet, dmp_vector) == dmp_vector_offset, "sACN DMP vector offset mismatch");
 static_assert(offsetof(packet, property_value_count) == property_value_count_offset, "sACN property count offset mismatch");

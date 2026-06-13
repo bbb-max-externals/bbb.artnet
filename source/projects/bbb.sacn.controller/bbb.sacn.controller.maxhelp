@@ -273,7 +273,7 @@
 						20.0
 					],
 					"style": "",
-					"text": "Set channel without sending"
+					"text": "Set channel without sending (uses origin)"
 				}
 			},
 			{
@@ -730,7 +730,7 @@
 					"patching_rect": [
 						520.0,
 						564.0,
-						200.0,
+						260.0,
 						22.0
 					],
 					"style": ""
@@ -751,7 +751,7 @@
 						18.0
 					],
 					"style": "",
-					"text": "Destination IP (empty=multicast)"
+					"text": "Destination IP (empty=per-universe multicast)"
 				}
 			},
 			{
@@ -770,7 +770,7 @@
 					"patching_rect": [
 						520.0,
 						612.0,
-						180.0,
+						260.0,
 						22.0
 					],
 					"style": ""
@@ -791,7 +791,7 @@
 						18.0
 					],
 					"style": "",
-					"text": "Local interface IP"
+					"text": "Local interface IP / multicast interface"
 				}
 			},
 			{
@@ -810,7 +810,7 @@
 					"patching_rect": [
 						520.0,
 						660.0,
-						160.0,
+						240.0,
 						22.0
 					],
 					"style": ""
@@ -831,7 +831,7 @@
 						18.0
 					],
 					"style": "",
-					"text": "Channel index origin"
+					"text": "Channel/setchannel/set_offset origin"
 				}
 			},
 			{
@@ -925,11 +925,11 @@
 					"patching_rect": [
 						20.0,
 						844.0,
-						432.5,
+						515.0,
 						22.0
 					],
 					"style": "",
-					"text": "bbb.sacn.controller @universe 1 @target_ip 192.168.1.50",
+					"text": "bbb.sacn.controller @target_ip 127.0.0.1 @num_universes 13 @mode 4",
 					"outlettype": [
 						"bang"
 					]
