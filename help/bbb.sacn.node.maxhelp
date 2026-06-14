@@ -361,6 +361,46 @@
 			},
 			{
 				"box": {
+					"attr": "bind_ip",
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-21",
+					"lock": 1,
+					"maxclass": "attrui",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						520.0,
+						372.0,
+						220.0,
+						22.0
+					],
+					"style": ""
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-22",
+					"maxclass": "comment",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
+						520.0,
+						395.0,
+						330.0,
+						18.0
+					],
+					"style": "",
+					"text": "Local interface IP for multicast receive"
+				}
+			},
+			{
+				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-17",

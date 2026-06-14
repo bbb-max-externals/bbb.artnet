@@ -149,7 +149,7 @@ Sends DMX data via sACN (E1.31) protocol.
 - `@bind_ip A.B.C.D` selects the outgoing local interface and is also applied as `IP_MULTICAST_IF` for multicast.
 - Example forced unicast for universes 1-13: `bbb.sacn.controller @target_ip 127.0.0.1 @num_universes 13 @mode 4`.
 
-The sACN packet encode/decode layer lives in [`2bbb/bbb-sacn`](https://github.com/2bbb/bbb-sacn) and is consumed here as a submodule.
+The sACN packet encode/decode and minimal UDP transport layers live in [`2bbb/bbb-sacn`](https://github.com/2bbb/bbb-sacn) and are consumed here as a submodule. Max-specific buffering, modes, and outlet/thread dispatch remain in this repository.
 
 ### bbb.sacn.node
 
@@ -163,6 +163,7 @@ Receives DMX data via sACN (E1.31) protocol.
 | `num_channels` | 512 | Channels to output |
 | `sync_universes` | true | Wait for all universes before output |
 | `mode` | update | Output mode: update, bang, automatic, change, forced |
+| `bind_ip` | "" | Local interface IP for incoming multicast (binds receiver socket and multicast membership; empty = all interfaces) |
 
 ## Build
 
@@ -199,7 +200,7 @@ bbb.artnet/
 ├── CMakeLists.txt
 ├── deps/
 │   ├── bbb-artnet/       # Art-Net protocol/node helper library (submodule)
-│   ├── bbb-sacn/         # sACN packet helper library (submodule)
+│   ├── bbb-sacn/         # sACN packet/UDP transport helper library (submodule)
 │   ├── min-api/          # Max min-api (submodule)
 │   └── osc/              # bbb-osc (submodule) + asio
 ├── source/

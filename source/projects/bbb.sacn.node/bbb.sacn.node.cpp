@@ -1,8 +1,7 @@
 #include "c74_min.h"
 #include <bbb/sacn/sacn_packet.h>
+#include <bbb/sacn/transport.hpp>
 #include <bbb/version.h>
-
-#include <bbb/net_compat.hpp>
 
 #include <algorithm>
 #include <atomic>
@@ -68,6 +67,34 @@ public:
         c74::min::range{"update", "bang", "automatic", "change", "forced"}
     };
 
+    c74::min::attribute<c74::min::symbol> bind_ip{this, "bind_ip", "",
+        c74::min::description{"Local interface IP for incoming sACN multicast (empty = all interfaces)."},
+        c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
+            if(m_constructed) {
+                m_restart_timer.delay(0);
+            }
+            return args;
+        }}
+    };
+
+    c74::min::timer<c74::min::timer_options::defer_delivery> m_init_timer{this,
+        MIN_FUNCTION {
+            guard_message("init", [&]() {
+                init_socket();
+            });
+            return {};
+        }
+    };
+
+    c74::min::timer<c74::min::timer_options::defer_delivery> m_restart_timer{this,
+        MIN_FUNCTION {
+            guard_message("restart", [&]() {
+                restart_socket();
+            });
+            return {};
+        }
+    };
+
     c74::min::queue<> m_output_queue{this,
         MIN_FUNCTION {
             guard_message("queued output", [&]() {
@@ -79,34 +106,15 @@ public:
     };
 
     sacn_node(const c74::min::atoms& args = {})
-#ifdef _WIN32
-        : m_fd{INVALID_SOCKET}
-#else
-        : m_fd{-1}
-#endif
-        , m_running{false}
+        : m_running{false}
     {
-        bbb::net::ensure_init();
         resize_universe_buffers(static_cast<int>(num_universes));
-        init_socket();
+        m_constructed = true;
+        m_init_timer.delay(0);
     }
 
     ~sacn_node() {
-        m_running = false;
-        if(bbb::net::socket_valid(m_fd)) {
-            leave_multicast_groups(static_cast<int>(universe), static_cast<int>(num_universes));
-#ifdef _WIN32
-            SOCKET fd = m_fd;
-            m_fd = INVALID_SOCKET;
-#else
-            int fd = m_fd;
-            m_fd = -1;
-#endif
-            bbb::net::close_socket(fd);
-        }
-        if(m_read_thread.joinable()) {
-            m_read_thread.join();
-        }
+        stop_socket();
     }
 
     c74::min::message<> bang_msg{this, "bang", "Output current data in bang mode.",
@@ -153,41 +161,33 @@ private:
     void reconfigure_universe_range(int first_universe, int universe_count) {
         int clamped_first_universe = std::max(1, first_universe);
         int clamped_universe_count = std::max(1, universe_count);
-        if(bbb::net::socket_valid(m_fd)) {
-            leave_multicast_groups(static_cast<int>(universe), static_cast<int>(num_universes));
+        if(m_receiver.valid()) {
+            leave_multicast_groups(static_cast<int>(universe), static_cast<int>(num_universes), m_active_bind_ip);
         }
         resize_universe_buffers(clamped_universe_count);
-        if(bbb::net::socket_valid(m_fd)) {
-            join_multicast_groups(clamped_first_universe, clamped_universe_count);
+        if(m_receiver.valid()) {
+            join_multicast_groups(clamped_first_universe, clamped_universe_count, m_active_bind_ip);
         }
     }
 
+    std::string get_bind_ip_str() {
+        return std::string(bind_ip.get().c_str());
+    }
+
     void init_socket() {
-        m_fd = socket(AF_INET, SOCK_DGRAM, 0);
-        if(!bbb::net::socket_valid(m_fd)) {
-            cerr << "bbb.sacn.node: failed to create socket" << c74::min::endl;
+        bbb::sacn::receiver_config config;
+        config.bind_ip = get_bind_ip_str();
+        if(!m_receiver.open(config)) {
+            cerr << "bbb.sacn.node: " << m_receiver.last_error() << c74::min::endl;
             return;
         }
 
-        int reuse = 1;
-        setsockopt(m_fd, SOL_SOCKET, SO_REUSEADDR,
-            reinterpret_cast<const char*>(&reuse), sizeof(reuse));
-#ifdef SO_REUSEPORT
-        setsockopt(m_fd, SOL_SOCKET, SO_REUSEPORT, &reuse, sizeof(reuse));
-#endif
+        m_active_bind_ip = config.bind_ip;
+        join_multicast_groups(static_cast<int>(universe), static_cast<int>(num_universes), m_active_bind_ip);
 
-        struct sockaddr_in address;
-        std::memset(&address, 0, sizeof(address));
-        address.sin_family = AF_INET;
-        address.sin_port = htons(5568);
-        address.sin_addr.s_addr = htonl(INADDR_ANY);
-
-        if(bind(m_fd, reinterpret_cast<struct sockaddr*>(&address), sizeof(address)) < 0) {
-            cerr << "bbb.sacn.node: failed to bind socket" << c74::min::endl;
-            return;
-        }
-
-        join_multicast_groups(static_cast<int>(universe), static_cast<int>(num_universes));
+        cout << "bbb.sacn.node: bound to "
+             << (m_active_bind_ip.empty() ? "all interfaces" : m_active_bind_ip)
+             << c74::min::endl;
 
         m_running = true;
         m_read_thread = std::thread([this]() {
@@ -195,37 +195,35 @@ private:
         });
     }
 
-    void join_multicast_groups(int first_universe, int universe_count) {
-        for(int i = 0; i < universe_count; ++i) {
-            uint16_t current_universe = static_cast<uint16_t>(first_universe + i);
-            auto multicast = sacn::universe_to_multicast(current_universe);
-
-            struct ip_mreq request;
-            std::memset(&request, 0, sizeof(request));
-            char multicast_string[16];
-            std::snprintf(multicast_string, sizeof(multicast_string), "%d.%d.%d.%d",
-                multicast.a, multicast.b, multicast.c, multicast.d);
-            inet_pton(AF_INET, multicast_string, &request.imr_multiaddr);
-            request.imr_interface.s_addr = htonl(INADDR_ANY);
-            setsockopt(m_fd, IPPROTO_IP, IP_ADD_MEMBERSHIP,
-                reinterpret_cast<const char*>(&request), sizeof(request));
+    void stop_socket() {
+        m_running = false;
+        if(m_receiver.valid()) {
+            leave_multicast_groups(static_cast<int>(universe), static_cast<int>(num_universes), m_active_bind_ip);
+            m_receiver.close();
+        }
+        if(m_read_thread.joinable()) {
+            m_read_thread.join();
         }
     }
 
-    void leave_multicast_groups(int first_universe, int universe_count) {
+    void restart_socket() {
+        stop_socket();
+        init_socket();
+    }
+
+    void join_multicast_groups(int first_universe, int universe_count, const std::string& interface_ip) {
         for(int i = 0; i < universe_count; ++i) {
             uint16_t current_universe = static_cast<uint16_t>(first_universe + i);
-            auto multicast = sacn::universe_to_multicast(current_universe);
+            if(!m_receiver.join_multicast_group(current_universe, interface_ip)) {
+                cerr << "bbb.sacn.node: " << m_receiver.last_error() << c74::min::endl;
+            }
+        }
+    }
 
-            struct ip_mreq request;
-            std::memset(&request, 0, sizeof(request));
-            char multicast_string[16];
-            std::snprintf(multicast_string, sizeof(multicast_string), "%d.%d.%d.%d",
-                multicast.a, multicast.b, multicast.c, multicast.d);
-            inet_pton(AF_INET, multicast_string, &request.imr_multiaddr);
-            request.imr_interface.s_addr = htonl(INADDR_ANY);
-            setsockopt(m_fd, IPPROTO_IP, IP_DROP_MEMBERSHIP,
-                reinterpret_cast<const char*>(&request), sizeof(request));
+    void leave_multicast_groups(int first_universe, int universe_count, const std::string& interface_ip) {
+        for(int i = 0; i < universe_count; ++i) {
+            uint16_t current_universe = static_cast<uint16_t>(first_universe + i);
+            m_receiver.leave_multicast_group(current_universe, interface_ip);
         }
     }
 
@@ -233,51 +231,29 @@ private:
         try {
             uint8_t buffer[65536];
             while(m_running) {
-                bbb::net::recv_len_t length = recvfrom(m_fd, reinterpret_cast<char*>(buffer), sizeof(buffer), 0, nullptr, nullptr);
+                bbb::sacn::net::recv_len_t length = m_receiver.receive(buffer, sizeof(buffer));
                 if(length <= 0) continue;
-                if(static_cast<int>(length) < sacn::dmx_data_offset) continue;
 
-                const uint8_t acn_id[12] = {0x41,0x53,0x43,0x2D,0x45,0x31,0x2E,0x31,0x37,0x00,0x00,0x00};
-                if(std::memcmp(buffer + sacn::acn_packet_id_offset, acn_id, 12) != 0) continue;
-
-                uint32_t root_vector = sacn::read_be32(buffer, sacn::root_vector_offset);
-                if(root_vector != 0x00000004) continue;
-
-                uint32_t framing_vector = sacn::read_be32(buffer, sacn::framing_vector_offset);
-                if(framing_vector != 0x00000002) continue;
-
-                uint8_t sequence = buffer[sacn::sequence_offset];
-                uint16_t packet_universe = sacn::read_be16(buffer, sacn::universe_offset);
-
-                uint8_t dmp_vector = buffer[sacn::dmp_vector_offset];
-                if(dmp_vector != 0x02) continue;
-
-                uint16_t property_value_count = sacn::read_be16(buffer, sacn::property_value_count_offset);
-                if(property_value_count <= 1) continue;
-
-                int available_data_length = static_cast<int>(length) - sacn::dmx_data_offset;
-                if(available_data_length <= 0) continue;
-
-                int declared_data_length = static_cast<int>(property_value_count) - 1;
-                int copy_length = std::min({declared_data_length, available_data_length, sacn::max_dmx_data_length});
+                sacn::dmx_data parsed{};
+                if(!sacn::parse_dmx(buffer, static_cast<int>(length), parsed)) continue;
 
                 std::lock_guard<std::mutex> lock(m_mutex);
                 int universe_index = -1;
                 int universe_count = static_cast<int>(m_received_universes.size());
                 for(int i = 0; i < universe_count; ++i) {
-                    if(static_cast<uint16_t>(universe + i) == packet_universe) {
+                    if(static_cast<uint16_t>(universe + i) == parsed.universe) {
                         universe_index = i;
                         break;
                     }
                 }
                 if(universe_index < 0) continue;
 
-                if(sequence == m_last_sequence[universe_index]) continue;
-                m_last_sequence[universe_index] = sequence;
+                if(parsed.sequence == m_last_sequence[universe_index]) continue;
+                m_last_sequence[universe_index] = parsed.sequence;
 
                 int offset = universe_index * 512;
-                if(offset + copy_length <= static_cast<int>(m_buffer.size())) {
-                    std::memcpy(m_buffer.data() + offset, buffer + sacn::dmx_data_offset, copy_length);
+                if(offset + parsed.length <= static_cast<int>(m_buffer.size())) {
+                    std::memcpy(m_buffer.data() + offset, parsed.data, static_cast<size_t>(parsed.length));
                 }
 
                 if(sync_universes && 1 < universe_count) {
@@ -326,11 +302,8 @@ private:
         m_prev_buffer = m_buffer;
     }
 
-#ifdef _WIN32
-    SOCKET m_fd;
-#else
-    int m_fd;
-#endif
+    bbb::sacn::receiver m_receiver;
+    std::string m_active_bind_ip;
     std::vector<uint8_t> m_buffer;
     std::vector<uint8_t> m_prev_buffer;
     std::vector<bool> m_received_universes;
@@ -338,6 +311,7 @@ private:
     std::mutex m_mutex;
     std::thread m_read_thread;
     std::atomic<bool> m_running;
+    bool m_constructed{false};
 };
 
 MIN_EXTERNAL(sacn_node);
