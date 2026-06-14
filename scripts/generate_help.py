@@ -4,6 +4,7 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PROJECTS_DIR = os.path.join(BASE_DIR, "source", "projects")
+HELP_DIR = os.path.join(BASE_DIR, "help")
 
 
 class IDGen:
@@ -276,6 +277,8 @@ EXTERNALS = {
             ("set 255 128 0", "Store values without sending"),
             ("set_offset 10 255", "Set value at offset position"),
             ("dump", "Output current DMX buffer as list"),
+            ("dump_universe 1", "Output one Art-Net port-address: universe <N> <values...>"),
+            ("set_universe 1 255 128 0", "Store one Art-Net port-address without sending"),
         ],
         "attributes": [
             ("net", "Art-Net net (0-127)", 160.0),
@@ -296,13 +299,15 @@ EXTERNALS = {
         ],
         "external_text": "bbb.artnet.controller @target_ip 192.168.1.100 @universe 1",
         "numoutlets": 1,
-        "outlettype": ["bang"],
-        "outlet_labels": ["bang on send"],
+        "outlettype": [""],
+        "outlet_labels": ["bang on send; list on dump"],
     },
     "bbb.artnet.node": {
         "description": "bbb.artnet.node receives DMX values using the Art-Net protocol.\nListens for Art-Net data and outputs received channel values as lists.",
         "messages": [
             ("bang", "Request current DMX values"),
+            ("dump_universe 1", "Output one Art-Net port-address: universe <N> <values...>"),
+            ("set_universe 1 255 128 0", "Store one Art-Net port-address without output"),
         ],
         "attributes": [
             ("net", "Art-Net net (0-127)", 160.0),
@@ -367,6 +372,8 @@ EXTERNALS = {
             ("setchannel 2 $1", "Set channel without sending (uses origin)"),
             ("set 255 128 0", "Store values without sending"),
             ("set_offset 10 255", "Set value at offset position"),
+            ("dump_universe 1", "Output one sACN universe: universe <N> <values...>"),
+            ("set_universe 1 255 128 0", "Store one sACN universe without sending"),
         ],
         "attributes": [
             ("universe", "sACN universe (1-63999)", 180.0),
@@ -386,13 +393,15 @@ EXTERNALS = {
         ],
         "external_text": "bbb.sacn.controller @target_ip 127.0.0.1 @num_universes 13 @mode 4",
         "numoutlets": 1,
-        "outlettype": ["bang"],
-        "outlet_labels": ["bang on send"],
+        "outlettype": [""],
+        "outlet_labels": ["bang on send; list on dump"],
     },
     "bbb.sacn.node": {
         "description": "bbb.sacn.node receives DMX values using the sACN (E1.31) protocol.\nListens for sACN data and outputs received channel values as lists.",
         "messages": [
             ("bang", "Request current DMX values"),
+            ("dump_universe 1", "Output one sACN universe: universe <N> <values...>"),
+            ("set_universe 1 255 128 0", "Store one sACN universe without output"),
         ],
         "attributes": [
             ("universe", "sACN universe (1-63999)", 180.0),
@@ -400,6 +409,7 @@ EXTERNALS = {
             ("num_channels", "Number of DMX channels", 160.0),
             ("sync_universes", "Sync all universes", 160.0),
             ("mode", "update/bang/automatic/change/forced", 220.0),
+            ("bind_ip", "Local interface IP / multicast membership", 260.0),
         ],
         "external_text": "bbb.sacn.node @universe 1",
         "numoutlets": 1,
@@ -410,15 +420,18 @@ EXTERNALS = {
 
 
 def main():
+    os.makedirs(HELP_DIR, exist_ok=True)
     for name, cfg in EXTERNALS.items():
         data = generate_help(name, cfg)
         out_dir = os.path.join(PROJECTS_DIR, name)
         os.makedirs(out_dir, exist_ok=True)
         out_path = os.path.join(out_dir, f"{name}.maxhelp")
-        with open(out_path, "w") as f:
-            json.dump(data, f, indent="\t")
-            f.write("\n")
-        print(f"  {out_path}")
+        help_path = os.path.join(HELP_DIR, f"{name}.maxhelp")
+        for path in (out_path, help_path):
+            with open(path, "w") as f:
+                json.dump(data, f, indent="\t")
+                f.write("\n")
+            print(f"  {path}")
 
 
 if __name__ == "__main__":

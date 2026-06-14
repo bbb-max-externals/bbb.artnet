@@ -161,10 +161,88 @@
 			},
 			{
 				"box": {
-					"attr": "net",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-7",
+					"maxclass": "message",
+					"numinlets": 2,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						20.0,
+						160.0,
+						140.0,
+						22.0
+					],
+					"style": "",
+					"text": "dump_universe 1"
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-8",
+					"maxclass": "comment",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
+						170.0,
+						160.0,
+						300.0,
+						20.0
+					],
+					"style": "",
+					"text": "Output one Art-Net port-address: universe <N> <values...>"
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-9",
+					"maxclass": "message",
+					"numinlets": 2,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						20.0,
+						188.0,
+						212.0,
+						22.0
+					],
+					"style": "",
+					"text": "set_universe 1 255 128 0"
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-10",
+					"maxclass": "comment",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
+						242.0,
+						188.0,
+						300.0,
+						20.0
+					],
+					"style": "",
+					"text": "Store one Art-Net port-address without output"
+				}
+			},
+			{
+				"box": {
+					"attr": "net",
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-11",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -185,7 +263,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-8",
+					"id": "obj-12",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -204,7 +282,7 @@
 					"attr": "subnet",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-9",
+					"id": "obj-13",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -225,7 +303,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-10",
+					"id": "obj-14",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -244,7 +322,7 @@
 					"attr": "universe",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-11",
+					"id": "obj-15",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -265,7 +343,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-12",
+					"id": "obj-16",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -284,7 +362,7 @@
 					"attr": "num_universes",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-13",
+					"id": "obj-17",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -305,7 +383,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-14",
+					"id": "obj-18",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -324,7 +402,7 @@
 					"attr": "num_channels",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-15",
+					"id": "obj-19",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -345,7 +423,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-16",
+					"id": "obj-20",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -364,7 +442,7 @@
 					"attr": "sync_universes",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-17",
+					"id": "obj-21",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -385,7 +463,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-18",
+					"id": "obj-22",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -404,7 +482,7 @@
 					"attr": "mode",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-19",
+					"id": "obj-23",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -425,7 +503,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-20",
+					"id": "obj-24",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -444,7 +522,7 @@
 					"attr": "framerate",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-21",
+					"id": "obj-25",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -465,7 +543,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-22",
+					"id": "obj-26",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -484,7 +562,7 @@
 					"attr": "target_ip",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-23",
+					"id": "obj-27",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -505,7 +583,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-24",
+					"id": "obj-28",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -524,7 +602,7 @@
 					"attr": "bind_ip",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-25",
+					"id": "obj-29",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -545,7 +623,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-26",
+					"id": "obj-30",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -564,7 +642,7 @@
 					"attr": "osc_port",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-27",
+					"id": "obj-31",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -585,7 +663,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-28",
+					"id": "obj-32",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -604,7 +682,7 @@
 					"attr": "osc_bind_ip",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-29",
+					"id": "obj-33",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -625,7 +703,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-30",
+					"id": "obj-34",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -644,7 +722,7 @@
 					"attr": "verbose",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-31",
+					"id": "obj-35",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -665,7 +743,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-32",
+					"id": "obj-36",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -683,7 +761,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-33",
+					"id": "obj-37",
 					"maxclass": "newobj",
 					"numinlets": 1,
 					"numoutlets": 1,
@@ -702,7 +780,7 @@
 			},
 			{
 				"box": {
-					"id": "obj-34",
+					"id": "obj-38",
 					"maxclass": "button",
 					"numinlets": 1,
 					"numoutlets": 1,
@@ -722,7 +800,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-35",
+					"id": "obj-39",
 					"maxclass": "newobj",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -740,7 +818,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-36",
+					"id": "obj-40",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -759,7 +837,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -773,7 +851,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -787,7 +865,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -801,7 +879,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -815,7 +893,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -829,7 +907,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -843,7 +921,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -857,7 +935,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -871,7 +949,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -885,7 +963,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -899,7 +977,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -913,7 +991,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -927,7 +1005,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -941,7 +1019,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-33",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -955,7 +1033,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-34",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
@@ -969,13 +1047,41 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-35",
+						"obj-37",
 						0
 					],
 					"disabled": 0,
 					"hidden": 0,
 					"source": [
-						"obj-33",
+						"obj-35",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"destination": [
+						"obj-38",
+						0
+					],
+					"disabled": 0,
+					"hidden": 0,
+					"source": [
+						"obj-37",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"destination": [
+						"obj-39",
+						0
+					],
+					"disabled": 0,
+					"hidden": 0,
+					"source": [
+						"obj-37",
 						0
 					]
 				}

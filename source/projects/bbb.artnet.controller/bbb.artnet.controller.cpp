@@ -1,5 +1,6 @@
 #include "c74_min.h"
 #include <bbb/artnet/artnet_node_manager.hpp>
+#include <bbb/dmx_universe_messages.hpp>
 #include <bbb/version.h>
 #pragma push_macro("NIL")
 #undef NIL
@@ -23,7 +24,7 @@ public:
     MIN_RELATED{"bbb.artnet.node"};
 
     c74::min::inlet<> input{this, "(list/bang/message) DMX data input"};
-    c74::min::outlet<> output{this, "(bang) bang on packet transmission"};
+    c74::min::outlet<> output{this, "(bang/list) bang on packet transmission; list on dump"};
 
     c74::min::argument<int> net_arg{this, "net", "Art-Net net address (0-127).",
         MIN_ARGUMENT_FUNCTION {
@@ -311,6 +312,48 @@ public:
         }
     };
 
+    c74::min::message<> dump_universe_msg{this, "dump_universe", "Output one universe as: universe N values...",
+        MIN_FUNCTION {
+            guard_message("dump_universe", [&]() {
+                if(args.empty()) {
+                    return;
+                }
+                std::lock_guard<std::mutex> lock(m_mutex);
+                int universe_identifier = static_cast<int>(args[0]);
+                int universe_index = universe_index_for_identifier(universe_identifier);
+                if(universe_index < 0) {
+                    cerr << "bbb.artnet.controller: unknown universe " << universe_identifier << c74::min::endl;
+                    return;
+                }
+                c74::min::atoms result;
+                bbb::dmx::append_universe_dump(result, universe_identifier, m_buffer, universe_index, static_cast<int>(num_channels));
+                output.send(result);
+            });
+            return {};
+        }
+    };
+
+    c74::min::message<> set_universe_msg{this, "set_universe", "Store one universe without sending: set_universe N values...",
+        MIN_FUNCTION {
+            guard_message("set_universe", [&]() {
+                if(args.empty()) {
+                    return;
+                }
+                std::lock_guard<std::mutex> lock(m_mutex);
+                int universe_identifier = static_cast<int>(args[0]);
+                int universe_index = universe_index_for_identifier(universe_identifier);
+                if(universe_index < 0) {
+                    cerr << "bbb.artnet.controller: unknown universe " << universe_identifier << c74::min::endl;
+                    return;
+                }
+                if(bbb::dmx::set_universe_data(m_buffer, universe_index, args, 1)) {
+                    m_dirty = true;
+                }
+            });
+            return {};
+        }
+    };
+
 private:
     template <typename function_type>
     void guard_message(const char* name, function_type&& function) {
@@ -330,6 +373,17 @@ private:
         size_t buffer_size = 512 * static_cast<size_t>(std::max(1, universe_count));
         m_buffer.resize(buffer_size, 0);
         m_prev_buffer.resize(buffer_size, 0);
+    }
+
+    int universe_index_for_identifier(int universe_identifier) const {
+        uint16_t requested = static_cast<uint16_t>(universe_identifier & 0x7FFF);
+        for(int i = 0; i < num_universes; ++i) {
+            uint16_t port_address = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
+            if(port_address == requested) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     const char* resolve_bind_ip() {
@@ -524,6 +578,10 @@ private:
                 try_call("set_offset", max_args);
             } else if(address == "/dump") {
                 try_call("dump", c74::min::atoms{});
+            } else if(address == "/dump_universe") {
+                try_call("dump_universe", max_args);
+            } else if(address == "/set_universe") {
+                try_call("set_universe", max_args);
             } else if(address == "/blackout") {
                 if(!max_args.empty()) {
                     blackout = static_cast<bool>(max_args[0]);
@@ -575,8 +633,24 @@ private:
             dispatch("/set_offset", max_args);
         });
 
+        m_osc_receiver->bind("/set_universe", [this, dispatch](bbb::osc::message& m) {
+            c74::min::atoms max_args;
+            for(auto& arg : m) {
+                max_args.push_back(static_cast<int>(arg));
+            }
+            dispatch("/set_universe", max_args);
+        });
+
         m_osc_receiver->bind("/dump", [this, dispatch](bbb::osc::message&) {
             dispatch("/dump", c74::min::atoms{});
+        });
+
+        m_osc_receiver->bind("/dump_universe", [this, dispatch](bbb::osc::message& m) {
+            c74::min::atoms max_args;
+            for(auto& arg : m) {
+                max_args.push_back(static_cast<int>(arg));
+            }
+            dispatch("/dump_universe", max_args);
         });
 
         m_osc_receiver->bind("/blackout", [this](bbb::osc::message& m) {

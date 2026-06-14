@@ -1,5 +1,6 @@
 #include "c74_min.h"
 #include <bbb/artnet/artnet_node_manager.hpp>
+#include <bbb/dmx_universe_messages.hpp>
 #include <bbb/version.h>
 #pragma push_macro("NIL")
 #undef NIL
@@ -155,6 +156,46 @@ public:
         }
     };
 
+    c74::min::message<> dump_universe_msg{this, "dump_universe", "Output one universe as: universe N values...",
+        MIN_FUNCTION {
+            guard_message("dump_universe", [&]() {
+                if(args.empty()) {
+                    return;
+                }
+                std::lock_guard<std::mutex> lock(m_mutex);
+                int universe_identifier = static_cast<int>(args[0]);
+                int universe_index = universe_index_for_identifier(universe_identifier);
+                if(universe_index < 0) {
+                    cerr << "bbb.artnet.node: unknown universe " << universe_identifier << c74::min::endl;
+                    return;
+                }
+                c74::min::atoms result;
+                bbb::dmx::append_universe_dump(result, universe_identifier, m_buffer, universe_index, static_cast<int>(num_channels));
+                output.send(result);
+            });
+            return {};
+        }
+    };
+
+    c74::min::message<> set_universe_msg{this, "set_universe", "Store one universe without output: set_universe N values...",
+        MIN_FUNCTION {
+            guard_message("set_universe", [&]() {
+                if(args.empty()) {
+                    return;
+                }
+                std::lock_guard<std::mutex> lock(m_mutex);
+                int universe_identifier = static_cast<int>(args[0]);
+                int universe_index = universe_index_for_identifier(universe_identifier);
+                if(universe_index < 0) {
+                    cerr << "bbb.artnet.node: unknown universe " << universe_identifier << c74::min::endl;
+                    return;
+                }
+                bbb::dmx::set_universe_data(m_buffer, universe_index, args, 1);
+            });
+            return {};
+        }
+    };
+
     c74::min::message<> maxclass_setup{this, "maxclass_setup",
         MIN_FUNCTION {
             guard_message("maxclass_setup", [&]() {
@@ -186,6 +227,17 @@ private:
     }
 
     std::string m_bip_str;
+
+    int universe_index_for_identifier(int universe_identifier) const {
+        uint16_t requested = static_cast<uint16_t>(universe_identifier & 0x7FFF);
+        for(int i = 0; i < num_universes; ++i) {
+            uint16_t port_address = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
+            if(port_address == requested) {
+                return i;
+            }
+        }
+        return -1;
+    }
 
     const char* resolve_bind_ip() {
         c74::min::symbol bip = bind_ip;
@@ -301,6 +353,22 @@ private:
 
         m_osc_receiver->bind("/bang", [this](bbb::osc::message&) {
             try_call("bang", c74::min::atoms{});
+        });
+
+        m_osc_receiver->bind("/dump_universe", [this](bbb::osc::message& m) {
+            c74::min::atoms max_args;
+            for(auto& arg : m) {
+                max_args.push_back(static_cast<int>(arg));
+            }
+            try_call("dump_universe", max_args);
+        });
+
+        m_osc_receiver->bind("/set_universe", [this](bbb::osc::message& m) {
+            c74::min::atoms max_args;
+            for(auto& arg : m) {
+                max_args.push_back(static_cast<int>(arg));
+            }
+            try_call("set_universe", max_args);
         });
 
         m_osc_timer.delay(10);

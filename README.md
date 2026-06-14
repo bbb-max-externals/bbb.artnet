@@ -10,7 +10,7 @@ Sends DMX data via Art-Net protocol. Supports broadcast and unicast.
 
 **Inlets/Outlets:**
 - inlet 0: `(list/bang/message)` DMX data input
-- outlet 0: `(bang)` bang on packet transmission
+- outlet 0: `(bang/list)` bang on packet transmission; list output for `dump` and `dump_universe`
 
 **Messages:**
 - `list` — set DMX values from a list (0–255)
@@ -20,6 +20,8 @@ Sends DMX data via Art-Net protocol. Supports broadcast and unicast.
 - `set V0 V1 ...` — store values without sending
 - `set_offset OFFSET V0 V1 ...` — store values at offset (1-based by default)
 - `dump` — output current DMX buffer as list from outlet
+- `dump_universe N` — output one Art-Net port-address as `universe N V0 V1 ...`; outputs `num_channels` values
+- `set_universe N V0 V1 ...` — store up to 512 values for one Art-Net port-address without sending
 
 **Attributes:**
 | Attribute | Default | Description |
@@ -41,7 +43,7 @@ Sends DMX data via Art-Net protocol. Supports broadcast and unicast.
 | `verbose` | false | Enable verbose logging (not yet implemented) |
 
 **OSC addresses** (when `osc_port` is set):
-`/list`, `/set`, `/bang`, `/channel`, `/setchannel`, `/set_offset`, `/dump`, `/blackout`
+`/list`, `/set`, `/bang`, `/channel`, `/setchannel`, `/set_offset`, `/dump`, `/dump_universe`, `/set_universe`, `/blackout`
 
 ### bbb.artnet.node
 
@@ -53,6 +55,8 @@ Receives DMX data via Art-Net protocol.
 
 **Messages:**
 - `bang` — output current data (in bang mode)
+- `dump_universe N` — output one Art-Net port-address as `universe N V0 V1 ...`; outputs `num_channels` values
+- `set_universe N V0 V1 ...` — store up to 512 values for one Art-Net port-address without outputting
 
 **Attributes:**
 | Attribute | Default | Description |
@@ -72,7 +76,7 @@ Receives DMX data via Art-Net protocol.
 | `verbose` | false | Enable verbose logging (not yet implemented) |
 
 **OSC addresses** (when `osc_port` is set):
-`/bang`
+`/bang`, `/dump_universe`, `/set_universe`
 
 ### bbb.artnet.rdm
 
@@ -115,6 +119,10 @@ RDM controller over Art-Net. Discovers and controls RDM devices.
 
 Sends DMX data via sACN (E1.31) protocol.
 
+**Inlets/Outlets:**
+- inlet 0: `(list/bang/message)` DMX data input
+- outlet 0: `(bang/list)` bang on packet transmission; list output for `dump_universe`
+
 **Messages:**
 - `list` — set DMX values from a list
 - `bang` — trigger send (in bang mode)
@@ -122,6 +130,8 @@ Sends DMX data via sACN (E1.31) protocol.
 - `setchannel INDEX VALUE` — set without sending (uses `origin`)
 - `set V0 V1 ...` — store values without sending
 - `set_offset OFFSET V0 V1 ...` — store values at offset
+- `dump_universe N` — output one sACN universe as `universe N V0 V1 ...`; outputs `num_channels` values
+- `set_universe N V0 V1 ...` — store up to 512 values for one sACN universe without sending
 
 **Attributes:**
 | Attribute | Default | Description |
@@ -154,6 +164,15 @@ The sACN packet encode/decode and minimal UDP transport layers live in [`2bbb/bb
 ### bbb.sacn.node
 
 Receives DMX data via sACN (E1.31) protocol.
+
+**Inlets/Outlets:**
+- inlet 0: `(bang/message)` request or mutate current data
+- outlet 0: `(list)` DMX values as list of integers
+
+**Messages:**
+- `bang` — output current data (in bang mode)
+- `dump_universe N` — output one sACN universe as `universe N V0 V1 ...`; outputs `num_channels` values
+- `set_universe N V0 V1 ...` — store up to 512 values for one sACN universe without outputting
 
 **Attributes:**
 | Attribute | Default | Description |

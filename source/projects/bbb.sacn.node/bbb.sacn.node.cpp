@@ -1,6 +1,7 @@
 #include "c74_min.h"
 #include <bbb/sacn/sacn_packet.h>
 #include <bbb/sacn/transport.hpp>
+#include <bbb/dmx_universe_messages.hpp>
 #include <bbb/version.h>
 
 #include <algorithm>
@@ -127,6 +128,46 @@ public:
         }
     };
 
+    c74::min::message<> dump_universe_msg{this, "dump_universe", "Output one universe as: universe N values...",
+        MIN_FUNCTION {
+            guard_message("dump_universe", [&]() {
+                if(args.empty()) {
+                    return;
+                }
+                std::lock_guard<std::mutex> lock(m_mutex);
+                int universe_identifier = static_cast<int>(args[0]);
+                int universe_index = universe_index_for_identifier(universe_identifier);
+                if(universe_index < 0) {
+                    cerr << "bbb.sacn.node: unknown universe " << universe_identifier << c74::min::endl;
+                    return;
+                }
+                c74::min::atoms result;
+                bbb::dmx::append_universe_dump(result, universe_identifier, m_buffer, universe_index, static_cast<int>(num_channels));
+                output.send(result);
+            });
+            return {};
+        }
+    };
+
+    c74::min::message<> set_universe_msg{this, "set_universe", "Store one universe without output: set_universe N values...",
+        MIN_FUNCTION {
+            guard_message("set_universe", [&]() {
+                if(args.empty()) {
+                    return;
+                }
+                std::lock_guard<std::mutex> lock(m_mutex);
+                int universe_identifier = static_cast<int>(args[0]);
+                int universe_index = universe_index_for_identifier(universe_identifier);
+                if(universe_index < 0) {
+                    cerr << "bbb.sacn.node: unknown universe " << universe_identifier << c74::min::endl;
+                    return;
+                }
+                bbb::dmx::set_universe_data(m_buffer, universe_index, args, 1);
+            });
+            return {};
+        }
+    };
+
     c74::min::message<> maxclass_setup{this, "maxclass_setup",
         MIN_FUNCTION {
             guard_message("maxclass_setup", [&]() {
@@ -156,6 +197,14 @@ private:
         m_prev_buffer.resize(buffer_size, 0);
         m_received_universes.assign(static_cast<size_t>(clamped_universe_count), false);
         m_last_sequence.assign(static_cast<size_t>(clamped_universe_count), 255);
+    }
+
+    int universe_index_for_identifier(int universe_identifier) const {
+        int index = universe_identifier - static_cast<int>(universe);
+        if(0 <= index && index < static_cast<int>(num_universes)) {
+            return index;
+        }
+        return -1;
     }
 
     void reconfigure_universe_range(int first_universe, int universe_count) {
