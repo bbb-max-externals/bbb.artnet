@@ -13,6 +13,9 @@
 #include <atomic>
 
 class artnet_node_obj : public c74::min::object<artnet_node_obj> {
+private:
+    bool m_constructed{false};
+
 public:
     MIN_DESCRIPTION{"Receive DMX via Art-Net protocol."};
     MIN_TAGS{"dmx, artnet, lighting"};
@@ -54,7 +57,7 @@ public:
         c74::min::range{1, 32},
         c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
             guard_message("num_universes", [&]() {
-                if(!args.empty()) {
+                if(m_constructed && !args.empty()) {
                     resize_universe_buffers(static_cast<int>(args[0]));
                 }
             });
@@ -136,6 +139,7 @@ public:
 
     artnet_node_obj(const c74::min::atoms& args = {}) {
         resize_universe_buffers(static_cast<int>(num_universes));
+        m_constructed = true;
         m_init_timer.delay(0);
     }
 

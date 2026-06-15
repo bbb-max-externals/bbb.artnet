@@ -14,6 +14,9 @@
 #include <vector>
 
 class sacn_controller : public c74::min::object<sacn_controller> {
+private:
+    bool m_constructed{false};
+
 public:
     MIN_DESCRIPTION{"Send DMX via sACN (E1.31) protocol."};
     MIN_TAGS{"dmx, sacn, e1.31, lighting"};
@@ -39,7 +42,7 @@ public:
         c74::min::range{1, 32},
         c74::min::setter{[this](const c74::min::atoms& args, int) -> c74::min::atoms {
             guard_message("num_universes", [&]() {
-                if(!args.empty()) {
+                if(m_constructed && !args.empty()) {
                     resize_universe_buffers(static_cast<int>(args[0]));
                 }
             });
@@ -511,7 +514,6 @@ private:
     std::atomic<bool> m_dirty;
     uint8_t m_sequence;
     std::array<uint8_t, 16> m_cid;
-    bool m_constructed{false};
 };
 
 MIN_EXTERNAL(sacn_controller);
