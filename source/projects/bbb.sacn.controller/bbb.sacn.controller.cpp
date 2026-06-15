@@ -101,6 +101,10 @@ public:
         c74::min::description{"Local interface IP for outgoing sACN (empty = auto/default route)."}
     };
 
+    c74::min::attribute<bool> send_only{this, "send_only", true,
+        c74::min::description{"API parity with bbb.artnet.controller; sACN controller is always send-only."}
+    };
+
     c74::min::attribute<int> origin{this, "origin", 1,
         c74::min::description{"Channel index origin: 1 = 1-based (default), 0 = 0-based."},
         c74::min::range{0, 1},
@@ -418,12 +422,12 @@ private:
 
     void log_bind_interface(const std::string& local_ip) {
         if(local_ip.empty()) {
-            cout << "bbb.sacn.controller: bound to default interface, mode: "
+            cout << "bbb.sacn.controller: send-only using default interface, mode: "
                  << (is_unicast_mode() ? "unicast" : "multicast") << c74::min::endl;
             return;
         }
 
-        cout << "bbb.sacn.controller: bound to " << local_ip
+        cout << "bbb.sacn.controller: send-only using " << local_ip
              << ", mode: " << (is_unicast_mode() ? "unicast" : "multicast")
              << c74::min::endl;
     }

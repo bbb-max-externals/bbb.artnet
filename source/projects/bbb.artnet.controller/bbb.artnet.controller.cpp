@@ -131,6 +131,10 @@ public:
         c74::min::description{"Local IP to bind (empty = auto-detect from target_ip subnet)."}
     };
 
+    c74::min::attribute<bool> send_only{this, "send_only", false,
+        c74::min::description{"Send ArtDmx from an ephemeral UDP socket without binding/listening on Art-Net port 6454."}
+    };
+
     c74::min::attribute<c74::min::symbol> osc_bind_ip{this, "osc_bind_ip", "0.0.0.0",
         c74::min::description{"OSC listen address (0.0.0.0 = all interfaces)."}
     };
@@ -177,6 +181,8 @@ public:
     artnet_controller(const c74::min::atoms& args = {})
         : m_running{false}
         , m_dirty{false}
+        , m_sequence{0}
+        , m_send_only_socket(m_send_only_io)
     {
         m_constructed = true;
         resize_universe_buffers(static_cast<int>(num_universes));
@@ -188,6 +194,7 @@ public:
         if(m_managed_node) {
             m_managed_node->remove_callbacks(this);
         }
+        close_send_only_socket();
     }
 
     c74::min::message<> list_msg{this, "list", "Set DMX values from a list.",
@@ -410,6 +417,17 @@ private:
     }
 
     void init_artnet() {
+        if(static_cast<bool>(send_only)) {
+            if(m_managed_node) {
+                m_managed_node->remove_callbacks(this);
+                m_managed_node.reset();
+            }
+            open_send_only_socket();
+            start_forced_timer();
+            return;
+        }
+
+        close_send_only_socket();
         const char* ip = resolve_bind_ip();
         m_managed_node = bbb::artnet::managed_node::get_or_create(ip);
         if(!m_managed_node || !m_managed_node->valid()) {
@@ -493,6 +511,11 @@ private:
 
     void send_all() {
         try {
+            if(static_cast<bool>(send_only)) {
+                send_all_send_only();
+                return;
+            }
+
             if(!m_managed_node || !m_managed_node->valid()) return;
 
             bool unicast = is_unicast_mode();
@@ -543,12 +566,126 @@ private:
         }
     }
 
+    void open_send_only_socket() {
+        close_send_only_socket();
+
+        asio::error_code error_code;
+        m_send_only_socket.open(asio::ip::udp::v4(), error_code);
+        if(error_code) {
+            cerr << "bbb.artnet.controller: send_only socket open failed: "
+                 << error_code.message().c_str() << c74::min::endl;
+            return;
+        }
+
+        m_send_only_socket.set_option(asio::socket_base::broadcast(true), error_code);
+        if(error_code) {
+            cerr << "bbb.artnet.controller: send_only broadcast option failed: "
+                 << error_code.message().c_str() << c74::min::endl;
+            close_send_only_socket();
+            return;
+        }
+
+        if(!get_bind_ip_str().empty() && get_bind_ip_str() != "0.0.0.0") {
+            cout << "bbb.artnet.controller: send_only ignores bind_ip; using OS routing"
+                 << c74::min::endl;
+        }
+
+        cout << "bbb.artnet.controller: send_only open, mode: "
+             << (is_unicast_mode() ? "unicast" : "broadcast")
+             << c74::min::endl;
+    }
+
+    void close_send_only_socket() {
+        if(m_send_only_socket.is_open()) {
+            asio::error_code error_code;
+            m_send_only_socket.close(error_code);
+        }
+    }
+
+    bool send_dmx_send_only(uint16_t port_address, int16_t length, const uint8_t* data) {
+        if(!m_send_only_socket.is_open()) {
+            open_send_only_socket();
+        }
+        if(!m_send_only_socket.is_open()) {
+            return false;
+        }
+        if(length < 1 || 512 < length || data == nullptr) {
+            return false;
+        }
+
+        std::vector<uint8_t> packet = bbb::artnet::protocol::build_dmx_packet(
+            m_sequence++,
+            0,
+            port_address,
+            data,
+            static_cast<uint16_t>(length)
+        );
+
+        asio::error_code error_code;
+        asio::ip::udp::endpoint destination_endpoint;
+        if(is_unicast_mode()) {
+            destination_endpoint = asio::ip::udp::endpoint(
+                asio::ip::make_address(get_target_ip_str(), error_code),
+                bbb::artnet::protocol::ARTNET_PORT
+            );
+            if(error_code) {
+                cerr << "bbb.artnet.controller: invalid target_ip: "
+                     << get_target_ip_str().c_str() << c74::min::endl;
+                return false;
+            }
+        } else {
+            destination_endpoint = asio::ip::udp::endpoint(
+                asio::ip::address_v4::broadcast(),
+                bbb::artnet::protocol::ARTNET_PORT
+            );
+        }
+
+        m_send_only_socket.send_to(asio::buffer(packet), destination_endpoint, 0, error_code);
+        if(error_code) {
+            cerr << "bbb.artnet.controller: send_only send failed: "
+                 << error_code.message().c_str() << c74::min::endl;
+            return false;
+        }
+        return true;
+    }
+
+    void send_all_send_only() {
+        if(blackout) {
+            std::vector<uint8_t> zeros(512, 0);
+            for(int i = 0; i < num_universes; ++i) {
+                uint16_t port_address = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
+                send_dmx_send_only(port_address, 512, zeros.data());
+            }
+        } else {
+            for(int i = 0; i < num_universes; ++i) {
+                int offset = i * 512;
+                int length = std::min(512, static_cast<int>(m_buffer.size()) - offset);
+                if(0 < length) {
+                    uint16_t port_address = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
+                    send_dmx_send_only(port_address, static_cast<int16_t>(length), m_buffer.data() + offset);
+                }
+            }
+        }
+
+        m_prev_buffer = m_buffer;
+        m_dirty = false;
+        output.send(c74::min::k_sym_bang);
+    }
+
+    std::string get_bind_ip_str() const {
+        c74::min::symbol bind = bind_ip;
+        return static_cast<const char*>(bind);
+    }
+
     std::shared_ptr<bbb::artnet::managed_node> m_managed_node;
     std::vector<uint8_t> m_buffer;
     std::vector<uint8_t> m_prev_buffer;
     std::mutex m_mutex;
     std::atomic<bool> m_running;
     std::atomic<bool> m_dirty;
+    uint8_t m_sequence;
+    asio::io_context m_send_only_io;
+    asio::ip::udp::socket m_send_only_socket;
 
     std::shared_ptr<bbb::osc::asio_receiver> m_osc_receiver;
     std::string m_bip_str;

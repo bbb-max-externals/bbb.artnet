@@ -37,10 +37,16 @@ Sends DMX data via Art-Net protocol. Supports broadcast and unicast.
 | `framerate` | 40.0 | Framerate for forced mode |
 | `target_ip` | "" | Destination IP (empty=broadcast, broadcast addr=broadcast, unicast addr=unicast) |
 | `bind_ip` | "" | Local IP to bind (empty=auto-detect from target_ip subnet) |
+| `send_only` | false | Send ArtDmx from an ephemeral UDP socket without binding/listening on Art-Net port 6454; disables the managed node receive/control path |
 | `origin` | 1 | Channel index origin: 1=1-based, 0=0-based |
 | `osc_port` | 0 | OSC receive port (0 = disabled) |
 | `osc_bind_ip` | 0.0.0.0 | OSC listen address |
 | `verbose` | false | Enable verbose logging (not yet implemented) |
+
+**Art-Net socket behavior:**
+- Default mode uses the shared managed Art-Net node and binds UDP port `6454`. That is the correct path when you need normal Art-Net node/control behavior.
+- `@send_only 1` sends only ArtDmx packets from an ephemeral source port and does **not** bind/listen on `6454`.
+- In `@send_only 1`, `bind_ip` is ignored; OS routing chooses the outgoing interface. If you need deterministic interface selection, do not pretend this is free: binding a local interface and “never bind” are competing requirements.
 
 **OSC addresses** (when `osc_port` is set):
 `/list`, `/set`, `/bang`, `/channel`, `/setchannel`, `/set_offset`, `/dump`, `/dump_universe`, `/set_universe`, `/blackout`
@@ -147,6 +153,7 @@ Sends DMX data via sACN (E1.31) protocol.
 | `source_name` | bbb.sacn.controller | sACN source name |
 | `target_ip` | "" | Destination IP (empty = per-universe multicast, unicast addr = unicast, multicast addr = explicit multicast) |
 | `bind_ip` | "" | Local interface IP for outgoing sACN (binds socket and sets multicast interface) |
+| `send_only` | true | API parity with Art-Net; sACN controller is already send-only and this does not change socket behavior |
 | `origin` | 1 | Channel index origin: 1=1-based, 0=0-based |
 | `unicast` | false | Legacy compatibility: use `unicast_ip` when `target_ip` is empty |
 | `unicast_ip` | 127.0.0.1 | Legacy destination IP for unicast |
@@ -157,6 +164,7 @@ Sends DMX data via sACN (E1.31) protocol.
 - `@target_ip 127.0.0.1` or another unicast address sends every configured universe to that one address.
 - `@target_ip 239.255.0.13` sends every configured universe to that explicit multicast address; normally leave `target_ip` empty for per-universe multicast.
 - `@bind_ip A.B.C.D` selects the outgoing local interface and is also applied as `IP_MULTICAST_IF` for multicast.
+- `@send_only` exists for API parity with `bbb.artnet.controller`; sACN controller does not listen for control packets and never binds UDP port `5568` as a receiver.
 - Example forced unicast for universes 1-13: `bbb.sacn.controller @target_ip 127.0.0.1 @num_universes 13 @mode 4`.
 
 The sACN packet encode/decode and minimal UDP transport layers live in [`2bbb/bbb-sacn`](https://github.com/2bbb/bbb-sacn) and are consumed here as a submodule. Max-specific buffering, modes, and outlet/thread dispatch remain in this repository.
