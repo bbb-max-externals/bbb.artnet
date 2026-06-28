@@ -181,7 +181,6 @@ public:
     artnet_controller(const c74::min::atoms& args = {})
         : m_running{false}
         , m_dirty{false}
-        , m_sequence{0}
         , m_send_only_socket(m_send_only_io)
     {
         m_constructed = true;
@@ -614,7 +613,7 @@ private:
         }
 
         std::vector<uint8_t> packet = bbb::artnet::protocol::build_dmx_packet(
-            m_sequence++,
+            0,
             0,
             port_address,
             data,
@@ -683,7 +682,6 @@ private:
     std::mutex m_mutex;
     std::atomic<bool> m_running;
     std::atomic<bool> m_dirty;
-    uint8_t m_sequence;
     asio::io_context m_send_only_io;
     asio::ip::udp::socket m_send_only_socket;
 
