@@ -47,6 +47,7 @@ Sends DMX data via Art-Net protocol. Supports broadcast and unicast.
 - Default mode uses the shared managed Art-Net node and binds UDP port `6454`. That is the correct path when you need normal Art-Net node/control behavior.
 - `@send_only 1` sends only ArtDmx packets from an ephemeral source port and does **not** bind/listen on `6454`.
 - In `@send_only 1`, `bind_ip` is ignored; OS routing chooses the outgoing interface. If you need deterministic interface selection, do not pretend this is free: binding a local interface and “never bind” are competing requirements.
+- ArtDmx `Sequence` is enabled and tracked per Art-Net port-address: it starts at `1`, increments to `255`, then wraps to `1`. It intentionally never emits `0`, because `0` disables sequence tracking.
 
 **OSC addresses** (when `osc_port` is set):
 `/list`, `/set`, `/bang`, `/channel`, `/setchannel`, `/set_offset`, `/dump`, `/dump_universe`, `/set_universe`, `/blackout`

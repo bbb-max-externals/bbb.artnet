@@ -9,6 +9,7 @@
 #include <cstring>
 #include <vector>
 #include <mutex>
+#include <map>
 #include <atomic>
 #include <chrono>
 #include <exception>
@@ -613,7 +614,7 @@ private:
         }
 
         std::vector<uint8_t> packet = bbb::artnet::protocol::build_dmx_packet(
-            0,
+            next_dmx_sequence(port_address),
             0,
             port_address,
             data,
@@ -671,6 +672,12 @@ private:
         output.send(c74::min::k_sym_bang);
     }
 
+    uint8_t next_dmx_sequence(uint16_t port_address) {
+        uint8_t& sequence = m_dmx_sequences[port_address];
+        sequence = bbb::artnet::protocol::next_enabled_sequence(sequence);
+        return sequence;
+    }
+
     std::string get_bind_ip_str() const {
         c74::min::symbol bind = bind_ip;
         return static_cast<const char*>(bind);
@@ -684,6 +691,7 @@ private:
     std::atomic<bool> m_dirty;
     asio::io_context m_send_only_io;
     asio::ip::udp::socket m_send_only_socket;
+    std::map<uint16_t, uint8_t> m_dmx_sequences;
 
     std::shared_ptr<bbb::osc::asio_receiver> m_osc_receiver;
     std::string m_bip_str;
