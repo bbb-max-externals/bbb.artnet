@@ -2,6 +2,7 @@
 #include <bbb/sacn/sacn_packet.h>
 #include <bbb/sacn/transport.hpp>
 #include <bbb/dmx_universe_messages.hpp>
+#include <bbb/universe_remap.hpp>
 #include <bbb/version.h>
 
 #include <algorithm>
@@ -35,6 +36,16 @@ public:
     c74::min::attribute<int> universe{this, "universe", 1,
         c74::min::description{"sACN universe (1-63999)."},
         c74::min::range{1, 63999}
+    };
+
+    c74::min::attribute<int> input_universe_start{this, "input_universe_start", 1,
+        c74::min::description{"First logical universe accepted by universe remapping."},
+        c74::min::range{1, 63999}
+    };
+
+    c74::min::attribute<int> output_universe_start{this, "output_universe_start", 0,
+        c74::min::description{"First output universe for remapping; 0 disables remapping and preserves universe behavior."},
+        c74::min::range{0, 63999}
     };
 
     c74::min::attribute<int> num_universes{this, "num_universes", 1,
@@ -300,6 +311,23 @@ public:
         }
     };
 
+    c74::min::message<> dump_msg{this, "dump", "Output remap metadata and current DMX buffer as list.",
+        MIN_FUNCTION {
+            guard_message("dump", [&]() {
+                std::lock_guard<std::mutex> lock(m_mutex);
+                send_universe_remap_dump();
+                c74::min::atoms result;
+                int total = std::min(num_channels * num_universes, static_cast<int>(m_buffer.size()));
+                result.reserve(total);
+                for(int i = 0; i < total; ++i) {
+                    result.push_back(static_cast<int>(m_buffer[i]));
+                }
+                output.send(result);
+            });
+            return {};
+        }
+    };
+
     c74::min::message<> maxclass_setup{this, "maxclass_setup",
         MIN_FUNCTION {
             guard_message("maxclass_setup", [&]() {
@@ -330,12 +358,60 @@ private:
         m_prev_buffer.resize(buffer_size, 0);
     }
 
+    bool universe_remap_is_enabled() const {
+        return bbb::dmx::universe_remap_enabled(static_cast<int>(output_universe_start));
+    }
+
     int universe_index_for_identifier(int universe_identifier) const {
+        if(universe_remap_is_enabled()) {
+            int index = universe_identifier - static_cast<int>(input_universe_start);
+            if(0 <= index && index < static_cast<int>(num_universes)) {
+                return index;
+            }
+            return -1;
+        }
+
         int index = universe_identifier - static_cast<int>(universe);
         if(0 <= index && index < static_cast<int>(num_universes)) {
             return index;
         }
         return -1;
+    }
+
+    bool output_universe_for_buffer_index(int index, uint16_t& output_universe) {
+        if(universe_remap_is_enabled()) {
+            int logical_universe = static_cast<int>(input_universe_start) + index;
+            bbb::dmx::universe_remap_result result = bbb::dmx::remap_sacn_universe(
+                logical_universe,
+                static_cast<int>(input_universe_start),
+                static_cast<int>(output_universe_start));
+            if(!result.valid) {
+                cerr << "bbb.sacn.controller: remapped universe out of sACN range for logical universe "
+                     << logical_universe << c74::min::endl;
+                return false;
+            }
+            output_universe = static_cast<uint16_t>(result.universe);
+            return true;
+        }
+
+        output_universe = static_cast<uint16_t>(static_cast<int>(universe) + index);
+        return true;
+    }
+
+    void send_universe_remap_dump() {
+        if(!universe_remap_is_enabled()) {
+            return;
+        }
+
+        c74::min::atoms result;
+        result.push_back(c74::min::symbol("universe_remap"));
+        result.push_back(c74::min::symbol("input_start"));
+        result.push_back(static_cast<int>(input_universe_start));
+        result.push_back(c74::min::symbol("output_start"));
+        result.push_back(static_cast<int>(output_universe_start));
+        result.push_back(c74::min::symbol("enabled"));
+        result.push_back(1);
+        output.send(result);
     }
 
     void init_socket() {
@@ -490,7 +566,8 @@ private:
 
             if(length <= 0) continue;
 
-            uint16_t current_universe = static_cast<uint16_t>(universe + i);
+            uint16_t current_universe{0};
+            if(!output_universe_for_buffer_index(i, current_universe)) continue;
             c74::min::symbol name_sym = source_name;
             std::string name_string(static_cast<const char*>(name_sym));
 

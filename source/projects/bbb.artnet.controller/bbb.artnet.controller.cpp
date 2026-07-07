@@ -1,6 +1,7 @@
 #include "c74_min.h"
 #include <bbb/artnet/artnet_node_manager.hpp>
 #include <bbb/dmx_universe_messages.hpp>
+#include <bbb/universe_remap.hpp>
 #include <bbb/version.h>
 #pragma push_macro("NIL")
 #undef NIL
@@ -58,6 +59,16 @@ public:
     c74::min::attribute<int> universe{this, "universe", 0,
         c74::min::description{"Art-Net universe address (0-15)."},
         c74::min::range{0, 15}
+    };
+
+    c74::min::attribute<int> input_universe_start{this, "input_universe_start", 1,
+        c74::min::description{"First logical universe accepted by universe remapping."},
+        c74::min::range{1, 32768}
+    };
+
+    c74::min::attribute<int> output_universe_start{this, "output_universe_start", 0,
+        c74::min::description{"First output universe for 1-based remapping; 0 disables remapping and preserves net/subnet/universe behavior."},
+        c74::min::range{0, 32768}
     };
 
     c74::min::attribute<int> num_universes{this, "num_universes", 1,
@@ -307,6 +318,7 @@ public:
         MIN_FUNCTION {
             guard_message("dump", [&]() {
                 std::lock_guard<std::mutex> lock(m_mutex);
+                send_universe_remap_dump();
                 c74::min::atoms result;
                 int total = std::min(num_channels * num_universes, static_cast<int>(m_buffer.size()));
                 result.reserve(total);
@@ -382,7 +394,19 @@ private:
         m_prev_buffer.resize(buffer_size, 0);
     }
 
+    bool universe_remap_is_enabled() const {
+        return bbb::dmx::universe_remap_enabled(static_cast<int>(output_universe_start));
+    }
+
     int universe_index_for_identifier(int universe_identifier) const {
+        if(universe_remap_is_enabled()) {
+            int index = universe_identifier - static_cast<int>(input_universe_start);
+            if(0 <= index && index < static_cast<int>(num_universes)) {
+                return index;
+            }
+            return -1;
+        }
+
         uint16_t requested = static_cast<uint16_t>(universe_identifier & 0x7FFF);
         for(int i = 0; i < num_universes; ++i) {
             uint16_t port_address = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
@@ -391,6 +415,42 @@ private:
             }
         }
         return -1;
+    }
+
+    bool port_address_for_buffer_index(int index, uint16_t& port_address) {
+        if(universe_remap_is_enabled()) {
+            int logical_universe = static_cast<int>(input_universe_start) + index;
+            bbb::dmx::universe_remap_result result = bbb::dmx::remap_artnet_port_address(
+                logical_universe,
+                static_cast<int>(input_universe_start),
+                static_cast<int>(output_universe_start));
+            if(!result.valid) {
+                cerr << "bbb.artnet.controller: remapped universe out of Art-Net range for logical universe "
+                     << logical_universe << c74::min::endl;
+                return false;
+            }
+            port_address = static_cast<uint16_t>(result.universe);
+            return true;
+        }
+
+        port_address = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, index);
+        return true;
+    }
+
+    void send_universe_remap_dump() {
+        if(!universe_remap_is_enabled()) {
+            return;
+        }
+
+        c74::min::atoms result;
+        result.push_back(c74::min::symbol("universe_remap"));
+        result.push_back(c74::min::symbol("input_start"));
+        result.push_back(static_cast<int>(input_universe_start));
+        result.push_back(c74::min::symbol("output_start"));
+        result.push_back(static_cast<int>(output_universe_start));
+        result.push_back(c74::min::symbol("enabled"));
+        result.push_back(1);
+        output.send(result);
     }
 
     const char* resolve_bind_ip() {
@@ -524,7 +584,8 @@ private:
             if(blackout) {
                 std::vector<uint8_t> zeros(512, 0);
                 for(int i = 0; i < num_universes; ++i) {
-                    uint16_t port_addr = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
+                    uint16_t port_addr{0};
+                    if(!port_address_for_buffer_index(i, port_addr)) continue;
                     if(unicast) {
                         m_managed_node->send_dmx_unicast(tip.c_str(),
                             port_addr, 512, zeros.data());
@@ -538,7 +599,8 @@ private:
                     int offset = i * 512;
                     int length = std::min(512, static_cast<int>(m_buffer.size()) - offset);
                     if(length > 0) {
-                        uint16_t port_addr = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
+                        uint16_t port_addr{0};
+                        if(!port_address_for_buffer_index(i, port_addr)) continue;
                         if(unicast) {
                             m_managed_node->send_dmx_unicast(tip.c_str(),
                                 port_addr,
@@ -653,7 +715,8 @@ private:
         if(blackout) {
             std::vector<uint8_t> zeros(512, 0);
             for(int i = 0; i < num_universes; ++i) {
-                uint16_t port_address = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
+                uint16_t port_address{0};
+                if(!port_address_for_buffer_index(i, port_address)) continue;
                 send_dmx_send_only(port_address, 512, zeros.data());
             }
         } else {
@@ -661,7 +724,8 @@ private:
                 int offset = i * 512;
                 int length = std::min(512, static_cast<int>(m_buffer.size()) - offset);
                 if(0 < length) {
-                    uint16_t port_address = bbb::artnet::protocol::make_sequential_port_address(net, subnet, universe, i);
+                    uint16_t port_address{0};
+                    if(!port_address_for_buffer_index(i, port_address)) continue;
                     send_dmx_send_only(port_address, static_cast<int16_t>(length), m_buffer.data() + offset);
                 }
             }

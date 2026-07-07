@@ -12,7 +12,7 @@
 			100.0,
 			100.0,
 			860.0,
-			1012.0
+			1108.0
 		],
 		"bglocked": 0,
 		"openinpresentation": 0,
@@ -368,11 +368,11 @@
 					"patching_rect": [
 						20.0,
 						300.0,
-						140.0,
+						80.0,
 						22.0
 					],
 					"style": "",
-					"text": "dump_universe 1"
+					"text": "dump"
 				}
 			},
 			{
@@ -384,13 +384,13 @@
 					"numinlets": 1,
 					"numoutlets": 0,
 					"patching_rect": [
-						170.0,
+						110.0,
 						300.0,
 						300.0,
 						20.0
 					],
 					"style": "",
-					"text": "Output one sACN universe: universe <N> <values...>"
+					"text": "Output current DMX buffer as list; remap metadata first when enabled"
 				}
 			},
 			{
@@ -407,11 +407,11 @@
 					"patching_rect": [
 						20.0,
 						328.0,
-						212.0,
+						140.0,
 						22.0
 					],
 					"style": "",
-					"text": "set_universe 1 255 128 0"
+					"text": "dump_universe 1"
 				}
 			},
 			{
@@ -423,35 +423,34 @@
 					"numinlets": 1,
 					"numoutlets": 0,
 					"patching_rect": [
-						242.0,
+						170.0,
 						328.0,
 						300.0,
 						20.0
 					],
 					"style": "",
-					"text": "Store one sACN universe without sending"
+					"text": "Output one logical sACN universe: universe <N> <values...>"
 				}
 			},
 			{
 				"box": {
-					"attr": "universe",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-21",
-					"lock": 1,
-					"maxclass": "attrui",
-					"numinlets": 1,
+					"maxclass": "message",
+					"numinlets": 2,
 					"numoutlets": 1,
 					"outlettype": [
 						""
 					],
 					"patching_rect": [
-						520.0,
-						132.0,
-						180.0,
+						20.0,
+						356.0,
+						212.0,
 						22.0
 					],
-					"style": ""
+					"style": "",
+					"text": "set_universe 1 255 128 0"
 				}
 			},
 			{
@@ -463,18 +462,18 @@
 					"numinlets": 1,
 					"numoutlets": 0,
 					"patching_rect": [
-						520.0,
-						155.0,
+						242.0,
+						356.0,
 						300.0,
-						18.0
+						20.0
 					],
 					"style": "",
-					"text": "sACN universe (1-63999)"
+					"text": "Store one logical sACN universe without sending"
 				}
 			},
 			{
 				"box": {
-					"attr": "num_universes",
+					"attr": "universe",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-23",
@@ -487,8 +486,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						180.0,
-						160.0,
+						132.0,
+						300.0,
 						22.0
 					],
 					"style": ""
@@ -504,17 +503,17 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						203.0,
+						155.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "Number of universes to span"
+					"text": "sACN universe (1-63999), used when remap disabled"
 				}
 			},
 			{
 				"box": {
-					"attr": "num_channels",
+					"attr": "input_universe_start",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-25",
@@ -527,8 +526,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						228.0,
-						160.0,
+						180.0,
+						220.0,
 						22.0
 					],
 					"style": ""
@@ -544,20 +543,60 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
+						203.0,
+						300.0,
+						18.0
+					],
+					"style": "",
+					"text": "First logical universe for remap"
+				}
+			},
+			{
+				"box": {
+					"attr": "output_universe_start",
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-27",
+					"lock": 1,
+					"maxclass": "attrui",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						520.0,
+						228.0,
+						280.0,
+						22.0
+					],
+					"style": ""
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-28",
+					"maxclass": "comment",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
+						520.0,
 						251.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "Number of DMX channels"
+					"text": "Output sACN universe; 0 disables remap"
 				}
 			},
 			{
 				"box": {
-					"attr": "sync_universes",
+					"attr": "num_universes",
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-27",
+					"id": "obj-29",
 					"lock": 1,
 					"maxclass": "attrui",
 					"numinlets": 1,
@@ -578,7 +617,7 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-28",
+					"id": "obj-30",
 					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
@@ -589,52 +628,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Sync all universes on change"
+					"text": "Number of universes to span"
 				}
 			},
 			{
 				"box": {
-					"attr": "blackout",
-					"fontname": "Arial",
-					"fontsize": 12.0,
-					"id": "obj-29",
-					"lock": 1,
-					"maxclass": "attrui",
-					"numinlets": 1,
-					"numoutlets": 1,
-					"outlettype": [
-						""
-					],
-					"patching_rect": [
-						520.0,
-						324.0,
-						130.0,
-						22.0
-					],
-					"style": ""
-				}
-			},
-			{
-				"box": {
-					"fontname": "Arial",
-					"fontsize": 12.0,
-					"id": "obj-30",
-					"maxclass": "comment",
-					"numinlets": 1,
-					"numoutlets": 0,
-					"patching_rect": [
-						520.0,
-						347.0,
-						300.0,
-						18.0
-					],
-					"style": "",
-					"text": "Send all zeros"
-				}
-			},
-			{
-				"box": {
-					"attr": "mode",
+					"attr": "num_channels",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-31",
@@ -647,8 +646,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						372.0,
-						270.0,
+						324.0,
+						160.0,
 						22.0
 					],
 					"style": ""
@@ -664,17 +663,17 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						395.0,
+						347.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "0=automatic 1=bang 2=update 3=change 4=forced"
+					"text": "Number of DMX channels"
 				}
 			},
 			{
 				"box": {
-					"attr": "framerate",
+					"attr": "sync_universes",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-33",
@@ -687,7 +686,7 @@
 					],
 					"patching_rect": [
 						520.0,
-						420.0,
+						372.0,
 						160.0,
 						22.0
 					],
@@ -704,17 +703,17 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						443.0,
+						395.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "Target framerate"
+					"text": "Sync all universes on change"
 				}
 			},
 			{
 				"box": {
-					"attr": "priority",
+					"attr": "blackout",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-35",
@@ -727,8 +726,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						468.0,
-						160.0,
+						420.0,
+						130.0,
 						22.0
 					],
 					"style": ""
@@ -744,17 +743,17 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						491.0,
+						443.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "sACN priority (0-200)"
+					"text": "Send all zeros"
 				}
 			},
 			{
 				"box": {
-					"attr": "source_name",
+					"attr": "mode",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-37",
@@ -767,8 +766,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						516.0,
-						200.0,
+						468.0,
+						270.0,
 						22.0
 					],
 					"style": ""
@@ -784,17 +783,17 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						539.0,
+						491.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "sACN source name"
+					"text": "0=automatic 1=bang 2=update 3=change 4=forced"
 				}
 			},
 			{
 				"box": {
-					"attr": "target_ip",
+					"attr": "framerate",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-39",
@@ -807,8 +806,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						564.0,
-						260.0,
+						516.0,
+						160.0,
 						22.0
 					],
 					"style": ""
@@ -824,17 +823,17 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						587.0,
+						539.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "Destination IP (empty=per-universe multicast)"
+					"text": "Target framerate"
 				}
 			},
 			{
 				"box": {
-					"attr": "bind_ip",
+					"attr": "priority",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-41",
@@ -847,8 +846,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						612.0,
-						260.0,
+						564.0,
+						160.0,
 						22.0
 					],
 					"style": ""
@@ -864,17 +863,17 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						635.0,
+						587.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "Local interface IP / multicast interface"
+					"text": "sACN priority (0-200)"
 				}
 			},
 			{
 				"box": {
-					"attr": "send_only",
+					"attr": "source_name",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-43",
@@ -887,8 +886,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						660.0,
-						330.0,
+						612.0,
+						200.0,
 						22.0
 					],
 					"style": ""
@@ -904,17 +903,17 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						683.0,
+						635.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "Accepted for Art-Net API parity; sACN is always send-only"
+					"text": "sACN source name"
 				}
 			},
 			{
 				"box": {
-					"attr": "origin",
+					"attr": "target_ip",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-45",
@@ -927,8 +926,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						708.0,
-						240.0,
+						660.0,
+						260.0,
 						22.0
 					],
 					"style": ""
@@ -944,17 +943,17 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						731.0,
+						683.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "Channel/setchannel/set_offset origin"
+					"text": "Destination IP (empty=per-universe multicast)"
 				}
 			},
 			{
 				"box": {
-					"attr": "unicast",
+					"attr": "bind_ip",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-47",
@@ -967,8 +966,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						756.0,
-						150.0,
+						708.0,
+						260.0,
 						22.0
 					],
 					"style": ""
@@ -984,17 +983,17 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						779.0,
+						731.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "Legacy unicast mode"
+					"text": "Local interface IP / multicast interface"
 				}
 			},
 			{
 				"box": {
-					"attr": "unicast_ip",
+					"attr": "send_only",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-49",
@@ -1007,8 +1006,8 @@
 					],
 					"patching_rect": [
 						520.0,
-						804.0,
-						210.0,
+						756.0,
+						330.0,
 						22.0
 					],
 					"style": ""
@@ -1024,49 +1023,32 @@
 					"numoutlets": 0,
 					"patching_rect": [
 						520.0,
-						827.0,
+						779.0,
 						300.0,
 						18.0
 					],
 					"style": "",
-					"text": "Legacy unicast destination"
+					"text": "Accepted for Art-Net API parity; sACN is always send-only"
 				}
 			},
 			{
 				"box": {
+					"attr": "origin",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-51",
-					"maxclass": "newobj",
+					"lock": 1,
+					"maxclass": "attrui",
 					"numinlets": 1,
 					"numoutlets": 1,
-					"patching_rect": [
-						20.0,
-						892.0,
-						515.0,
-						22.0
-					],
-					"style": "",
-					"text": "bbb.sacn.controller @target_ip 127.0.0.1 @num_universes 13 @mode 4",
 					"outlettype": [
 						""
-					]
-				}
-			},
-			{
-				"box": {
-					"id": "obj-52",
-					"maxclass": "button",
-					"numinlets": 1,
-					"numoutlets": 1,
-					"outlettype": [
-						"bang"
 					],
 					"patching_rect": [
-						20.0,
-						932.0,
-						20.0,
-						20.0
+						520.0,
+						804.0,
+						240.0,
+						22.0
 					],
 					"style": ""
 				}
@@ -1075,18 +1057,40 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-53",
-					"maxclass": "newobj",
+					"id": "obj-52",
+					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
 					"patching_rect": [
-						50.0,
-						932.0,
-						180.0,
-						22.0
+						520.0,
+						827.0,
+						300.0,
+						18.0
 					],
 					"style": "",
-					"text": "print bbb.sacn.controller"
+					"text": "Channel/setchannel/set_offset origin"
+				}
+			},
+			{
+				"box": {
+					"attr": "unicast",
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-53",
+					"lock": 1,
+					"maxclass": "attrui",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						520.0,
+						852.0,
+						150.0,
+						22.0
+					],
+					"style": ""
 				}
 			},
 			{
@@ -1098,8 +1102,123 @@
 					"numinlets": 1,
 					"numoutlets": 0,
 					"patching_rect": [
+						520.0,
+						875.0,
+						300.0,
+						18.0
+					],
+					"style": "",
+					"text": "Legacy unicast mode"
+				}
+			},
+			{
+				"box": {
+					"attr": "unicast_ip",
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-55",
+					"lock": 1,
+					"maxclass": "attrui",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						520.0,
+						900.0,
+						210.0,
+						22.0
+					],
+					"style": ""
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-56",
+					"maxclass": "comment",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
+						520.0,
+						923.0,
+						300.0,
+						18.0
+					],
+					"style": "",
+					"text": "Legacy unicast destination"
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-57",
+					"maxclass": "newobj",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"patching_rect": [
+						20.0,
+						988.0,
+						717.5,
+						22.0
+					],
+					"style": "",
+					"text": "bbb.sacn.controller @target_ip 127.0.0.1 @num_universes 13 @mode 4 @output_universe_start 101",
+					"outlettype": [
+						""
+					]
+				}
+			},
+			{
+				"box": {
+					"id": "obj-58",
+					"maxclass": "button",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						"bang"
+					],
+					"patching_rect": [
+						20.0,
+						1028.0,
+						20.0,
+						20.0
+					],
+					"style": ""
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-59",
+					"maxclass": "newobj",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
 						50.0,
-						957.0,
+						1028.0,
+						180.0,
+						22.0
+					],
+					"style": "",
+					"text": "print bbb.sacn.controller"
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-60",
+					"maxclass": "comment",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
+						50.0,
+						1053.0,
 						300.0,
 						20.0
 					],
@@ -1112,7 +1231,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1126,7 +1245,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1140,7 +1259,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1154,7 +1273,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1168,7 +1287,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1182,7 +1301,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1196,7 +1315,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1210,7 +1329,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1224,7 +1343,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1238,7 +1357,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1252,7 +1371,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1266,7 +1385,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1280,7 +1399,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1294,7 +1413,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1308,7 +1427,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1322,7 +1441,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1336,7 +1455,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1350,7 +1469,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1364,7 +1483,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1378,7 +1497,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1392,7 +1511,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1406,7 +1525,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1420,7 +1539,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-51",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1434,7 +1553,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-52",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
@@ -1448,13 +1567,55 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-53",
+						"obj-57",
 						0
 					],
 					"disabled": 0,
 					"hidden": 0,
 					"source": [
-						"obj-51",
+						"obj-53",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"destination": [
+						"obj-57",
+						0
+					],
+					"disabled": 0,
+					"hidden": 0,
+					"source": [
+						"obj-55",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"destination": [
+						"obj-58",
+						0
+					],
+					"disabled": 0,
+					"hidden": 0,
+					"source": [
+						"obj-57",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"destination": [
+						"obj-59",
+						0
+					],
+					"disabled": 0,
+					"hidden": 0,
+					"source": [
+						"obj-57",
 						0
 					]
 				}

@@ -19,7 +19,7 @@ Sends DMX data via Art-Net protocol. Supports broadcast and unicast.
 - `setchannel INDEX VALUE` — set without sending (uses `origin`)
 - `set V0 V1 ...` — store values without sending
 - `set_offset OFFSET V0 V1 ...` — store values at offset (1-based by default)
-- `dump` — output current DMX buffer as list from outlet
+- `dump` — output current DMX buffer as list from outlet; when remap is enabled, outputs `universe_remap input_start X output_start Y enabled 1` first
 - `dump_universe N` — output one Art-Net port-address as `universe N V0 V1 ...`; outputs `num_channels` values
 - `set_universe N V0 V1 ...` — store up to 512 values for one Art-Net port-address without sending
 
@@ -28,7 +28,9 @@ Sends DMX data via Art-Net protocol. Supports broadcast and unicast.
 |---|---|---|
 | `net` | 0 | Art-Net net (0–127) |
 | `subnet` | 0 | Art-Net subnet (0–15) |
-| `universe` | 0 | Art-Net universe (0–15) |
+| `universe` | 0 | Art-Net universe (0–15), legacy/default output start when remap is disabled |
+| `input_universe_start` | 1 | First logical universe accepted when `output_universe_start` enables remapping |
+| `output_universe_start` | 0 | First 1-based physical/output universe for remapping; 0 disables remap and preserves legacy `net/subnet/universe` behavior |
 | `num_universes` | 1 | Number of universes (1–32) |
 | `num_channels` | 512 | Channels per universe |
 | `sync_universes` | true | Send all universes on any change |
@@ -47,7 +49,9 @@ Sends DMX data via Art-Net protocol. Supports broadcast and unicast.
 - Default mode uses the shared managed Art-Net node and binds UDP port `6454`. That is the correct path when you need normal Art-Net node/control behavior.
 - `@send_only 1` sends only ArtDmx packets from an ephemeral source port and does **not** bind/listen on `6454`.
 - In `@send_only 1`, `bind_ip` is ignored; OS routing chooses the outgoing interface. If you need deterministic interface selection, do not pretend this is free: binding a local interface and “never bind” are competing requirements.
-- ArtDmx `Sequence` is enabled and tracked per Art-Net port-address: it starts at `1`, increments to `255`, then wraps to `1`. It intentionally never emits `0`, because `0` disables sequence tracking.
+- ArtDmx `Sequence` is enabled and tracked per final Art-Net port-address: it starts at `1`, increments to `255`, then wraps to `1`. It intentionally never emits `0`, because `0` disables sequence tracking.
+- Universe remapping is available at the sender boundary: `@input_universe_start 1 @output_universe_start 101` maps logical `universe 1..13` data to output universes `101..113`. Remap attributes are user-facing 1-based; Art-Net converts to 0-based Port-Address internally at the final protocol boundary.
+- `@output_universe_start 0` disables remapping and preserves existing `net/subnet/universe` behavior. This compatibility escape hatch is deliberate; do not remove it unless you want to break existing patches.
 
 **OSC addresses** (when `osc_port` is set):
 `/list`, `/set`, `/bang`, `/channel`, `/setchannel`, `/set_offset`, `/dump`, `/dump_universe`, `/set_universe`, `/blackout`
@@ -137,13 +141,16 @@ Sends DMX data via sACN (E1.31) protocol.
 - `setchannel INDEX VALUE` — set without sending (uses `origin`)
 - `set V0 V1 ...` — store values without sending
 - `set_offset OFFSET V0 V1 ...` — store values at offset
+- `dump` — output current DMX buffer as list from outlet; when remap is enabled, outputs `universe_remap input_start X output_start Y enabled 1` first
 - `dump_universe N` — output one sACN universe as `universe N V0 V1 ...`; outputs `num_channels` values
 - `set_universe N V0 V1 ...` — store up to 512 values for one sACN universe without sending
 
 **Attributes:**
 | Attribute | Default | Description |
 |---|---|---|
-| `universe` | 1 | sACN universe (1–63999) |
+| `universe` | 1 | sACN universe (1–63999), legacy/default output start when remap is disabled |
+| `input_universe_start` | 1 | First logical universe accepted when `output_universe_start` enables remapping |
+| `output_universe_start` | 0 | First physical/output sACN universe for remapping; 0 disables remap and preserves legacy `universe` behavior |
 | `num_universes` | 1 | Number of universes |
 | `num_channels` | 512 | Channels per universe |
 | `sync_universes` | true | Sync all universes on change |
@@ -166,7 +173,9 @@ Sends DMX data via sACN (E1.31) protocol.
 - `@target_ip 239.255.0.13` sends every configured universe to that explicit multicast address; normally leave `target_ip` empty for per-universe multicast.
 - `@bind_ip A.B.C.D` selects the outgoing local interface and is also applied as `IP_MULTICAST_IF` for multicast.
 - `@send_only` exists for API parity with `bbb.artnet.controller`; sACN controller does not listen for control packets and never binds UDP port `5568` as a receiver.
-- Example forced unicast for universes 1-13: `bbb.sacn.controller @target_ip 127.0.0.1 @num_universes 13 @mode 4`.
+- Universe remapping is available at the sender boundary: `@input_universe_start 1 @output_universe_start 101` maps logical `universe 1..13` data to sACN universes `101..113`.
+- `@output_universe_start 0` disables remapping and preserves existing `universe` behavior.
+- Example forced unicast for logical universes 1-13 remapped to 101-113: `bbb.sacn.controller @target_ip 127.0.0.1 @num_universes 13 @mode 4 @input_universe_start 1 @output_universe_start 101`.
 
 The sACN packet encode/decode and minimal UDP transport layers live in [`2bbb/bbb-sacn`](https://github.com/2bbb/bbb-sacn) and are consumed here as a submodule. Max-specific buffering, modes, and outlet/thread dispatch remain in this repository.
 

@@ -16,6 +16,14 @@ add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/bbb-artnet)
 set(BBB_SACN_BUILD_TESTS ON CACHE BOOL "Build bbb-sacn unit tests" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/deps/bbb-sacn)
 
+add_executable(bbb_universe_remap_tests
+    tests/universe_remap_tests.cpp
+)
+target_include_directories(bbb_universe_remap_tests PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/source
+)
+add_test(NAME bbb_universe_remap_tests COMMAND bbb_universe_remap_tests)
+
 add_custom_target(generate_version ALL
     COMMAND ${CMAKE_COMMAND}
         -DWORKING_DIR=${CMAKE_CURRENT_SOURCE_DIR}

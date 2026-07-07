@@ -12,7 +12,7 @@
 			100.0,
 			100.0,
 			860.0,
-			1060.0
+			1156.0
 		],
 		"bglocked": 0,
 		"openinpresentation": 0,
@@ -390,7 +390,7 @@
 						20.0
 					],
 					"style": "",
-					"text": "Output current DMX buffer as list"
+					"text": "Output current DMX buffer as list; remap metadata first when enabled"
 				}
 			},
 			{
@@ -429,7 +429,7 @@
 						20.0
 					],
 					"style": "",
-					"text": "Output one Art-Net port-address: universe <N> <values...>"
+					"text": "Output one logical Art-Net universe/port-address: universe <N> <values...>"
 				}
 			},
 			{
@@ -567,7 +567,7 @@
 					"patching_rect": [
 						520.0,
 						228.0,
-						160.0,
+						260.0,
 						22.0
 					],
 					"style": ""
@@ -588,12 +588,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Art-Net universe (0-15)"
+					"text": "Art-Net universe (0-15), used when remap disabled"
 				}
 			},
 			{
 				"box": {
-					"attr": "num_universes",
+					"attr": "input_universe_start",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-29",
@@ -607,7 +607,7 @@
 					"patching_rect": [
 						520.0,
 						276.0,
-						160.0,
+						220.0,
 						22.0
 					],
 					"style": ""
@@ -628,12 +628,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Number of universes to span"
+					"text": "First logical universe for remap"
 				}
 			},
 			{
 				"box": {
-					"attr": "num_channels",
+					"attr": "output_universe_start",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-31",
@@ -647,7 +647,7 @@
 					"patching_rect": [
 						520.0,
 						324.0,
-						160.0,
+						280.0,
 						22.0
 					],
 					"style": ""
@@ -668,12 +668,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Number of DMX channels"
+					"text": "1-based output universe; 0 disables remap"
 				}
 			},
 			{
 				"box": {
-					"attr": "sync_universes",
+					"attr": "num_universes",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-33",
@@ -708,12 +708,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Sync all universes on change"
+					"text": "Number of universes to span"
 				}
 			},
 			{
 				"box": {
-					"attr": "blackout",
+					"attr": "num_channels",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-35",
@@ -727,7 +727,7 @@
 					"patching_rect": [
 						520.0,
 						420.0,
-						130.0,
+						160.0,
 						22.0
 					],
 					"style": ""
@@ -748,12 +748,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Send all zeros"
+					"text": "Number of DMX channels"
 				}
 			},
 			{
 				"box": {
-					"attr": "mode",
+					"attr": "sync_universes",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-37",
@@ -767,7 +767,7 @@
 					"patching_rect": [
 						520.0,
 						468.0,
-						240.0,
+						160.0,
 						22.0
 					],
 					"style": ""
@@ -788,12 +788,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "0=auto 1=bang 2=update 3=change 4=forced"
+					"text": "Sync all universes on change"
 				}
 			},
 			{
 				"box": {
-					"attr": "framerate",
+					"attr": "blackout",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-39",
@@ -807,7 +807,7 @@
 					"patching_rect": [
 						520.0,
 						516.0,
-						160.0,
+						130.0,
 						22.0
 					],
 					"style": ""
@@ -828,12 +828,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Target framerate (0.01-44)"
+					"text": "Send all zeros"
 				}
 			},
 			{
 				"box": {
-					"attr": "target_ip",
+					"attr": "mode",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-41",
@@ -847,7 +847,7 @@
 					"patching_rect": [
 						520.0,
 						564.0,
-						200.0,
+						240.0,
 						22.0
 					],
 					"style": ""
@@ -868,12 +868,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Destination IP (empty=broadcast)"
+					"text": "0=auto 1=bang 2=update 3=change 4=forced"
 				}
 			},
 			{
 				"box": {
-					"attr": "bind_ip",
+					"attr": "framerate",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-43",
@@ -887,7 +887,7 @@
 					"patching_rect": [
 						520.0,
 						612.0,
-						200.0,
+						160.0,
 						22.0
 					],
 					"style": ""
@@ -908,12 +908,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Local bind IP (empty=auto)"
+					"text": "Target framerate (0.01-44)"
 				}
 			},
 			{
 				"box": {
-					"attr": "send_only",
+					"attr": "target_ip",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-45",
@@ -927,7 +927,7 @@
 					"patching_rect": [
 						520.0,
 						660.0,
-						280.0,
+						200.0,
 						22.0
 					],
 					"style": ""
@@ -948,12 +948,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Ephemeral ArtDmx sender; no 6454 bind/listen"
+					"text": "Destination IP (empty=broadcast)"
 				}
 			},
 			{
 				"box": {
-					"attr": "origin",
+					"attr": "bind_ip",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-47",
@@ -967,7 +967,7 @@
 					"patching_rect": [
 						520.0,
 						708.0,
-						180.0,
+						200.0,
 						22.0
 					],
 					"style": ""
@@ -988,12 +988,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "Channel index origin (0 or 1)"
+					"text": "Local bind IP (empty=auto)"
 				}
 			},
 			{
 				"box": {
-					"attr": "osc_port",
+					"attr": "send_only",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-49",
@@ -1007,7 +1007,7 @@
 					"patching_rect": [
 						520.0,
 						756.0,
-						180.0,
+						280.0,
 						22.0
 					],
 					"style": ""
@@ -1028,12 +1028,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "OSC receive port (0=disabled)"
+					"text": "Ephemeral ArtDmx sender; no 6454 bind/listen"
 				}
 			},
 			{
 				"box": {
-					"attr": "osc_bind_ip",
+					"attr": "origin",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-51",
@@ -1068,12 +1068,12 @@
 						18.0
 					],
 					"style": "",
-					"text": "OSC listen address"
+					"text": "Channel index origin (0 or 1)"
 				}
 			},
 			{
 				"box": {
-					"attr": "verbose",
+					"attr": "osc_port",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-53",
@@ -1087,7 +1087,7 @@
 					"patching_rect": [
 						520.0,
 						852.0,
-						160.0,
+						180.0,
 						22.0
 					],
 					"style": ""
@@ -1108,44 +1108,27 @@
 						18.0
 					],
 					"style": "",
-					"text": "Enable verbose logging"
+					"text": "OSC receive port (0=disabled)"
 				}
 			},
 			{
 				"box": {
+					"attr": "osc_bind_ip",
 					"fontname": "Arial",
 					"fontsize": 12.0,
 					"id": "obj-55",
-					"maxclass": "newobj",
+					"lock": 1,
+					"maxclass": "attrui",
 					"numinlets": 1,
 					"numoutlets": 1,
-					"patching_rect": [
-						20.0,
-						940.0,
-						455.0,
-						22.0
-					],
-					"style": "",
-					"text": "bbb.artnet.controller @target_ip 192.168.1.100 @universe 1",
 					"outlettype": [
 						""
-					]
-				}
-			},
-			{
-				"box": {
-					"id": "obj-56",
-					"maxclass": "button",
-					"numinlets": 1,
-					"numoutlets": 1,
-					"outlettype": [
-						"bang"
 					],
 					"patching_rect": [
-						20.0,
-						980.0,
-						20.0,
-						20.0
+						520.0,
+						900.0,
+						180.0,
+						22.0
 					],
 					"style": ""
 				}
@@ -1154,18 +1137,40 @@
 				"box": {
 					"fontname": "Arial",
 					"fontsize": 12.0,
-					"id": "obj-57",
-					"maxclass": "newobj",
+					"id": "obj-56",
+					"maxclass": "comment",
 					"numinlets": 1,
 					"numoutlets": 0,
 					"patching_rect": [
-						50.0,
-						980.0,
-						180.0,
-						22.0
+						520.0,
+						923.0,
+						300.0,
+						18.0
 					],
 					"style": "",
-					"text": "print bbb.artnet.controller"
+					"text": "OSC listen address"
+				}
+			},
+			{
+				"box": {
+					"attr": "verbose",
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-57",
+					"lock": 1,
+					"maxclass": "attrui",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						""
+					],
+					"patching_rect": [
+						520.0,
+						948.0,
+						160.0,
+						22.0
+					],
+					"style": ""
 				}
 			},
 			{
@@ -1177,8 +1182,83 @@
 					"numinlets": 1,
 					"numoutlets": 0,
 					"patching_rect": [
+						520.0,
+						971.0,
+						300.0,
+						18.0
+					],
+					"style": "",
+					"text": "Enable verbose logging"
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-59",
+					"maxclass": "newobj",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"patching_rect": [
+						20.0,
+						1036.0,
+						747.5,
+						22.0
+					],
+					"style": "",
+					"text": "bbb.artnet.controller @target_ip 192.168.1.100 @input_universe_start 1 @output_universe_start 101",
+					"outlettype": [
+						""
+					]
+				}
+			},
+			{
+				"box": {
+					"id": "obj-60",
+					"maxclass": "button",
+					"numinlets": 1,
+					"numoutlets": 1,
+					"outlettype": [
+						"bang"
+					],
+					"patching_rect": [
+						20.0,
+						1076.0,
+						20.0,
+						20.0
+					],
+					"style": ""
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-61",
+					"maxclass": "newobj",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
 						50.0,
-						1005.0,
+						1076.0,
+						180.0,
+						22.0
+					],
+					"style": "",
+					"text": "print bbb.artnet.controller"
+				}
+			},
+			{
+				"box": {
+					"fontname": "Arial",
+					"fontsize": 12.0,
+					"id": "obj-62",
+					"maxclass": "comment",
+					"numinlets": 1,
+					"numoutlets": 0,
+					"patching_rect": [
+						50.0,
+						1101.0,
 						300.0,
 						20.0
 					],
@@ -1191,7 +1271,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1205,7 +1285,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1219,7 +1299,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1233,7 +1313,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1247,7 +1327,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1261,7 +1341,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1275,7 +1355,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1289,7 +1369,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1303,7 +1383,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1317,7 +1397,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1331,7 +1411,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1345,7 +1425,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1359,7 +1439,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1373,7 +1453,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1387,7 +1467,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1401,7 +1481,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1415,7 +1495,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1429,7 +1509,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1443,7 +1523,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1457,7 +1537,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1471,7 +1551,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1485,7 +1565,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1499,7 +1579,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1513,7 +1593,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1527,7 +1607,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-55",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1541,7 +1621,7 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-56",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
@@ -1555,13 +1635,41 @@
 			{
 				"patchline": {
 					"destination": [
-						"obj-57",
+						"obj-59",
 						0
 					],
 					"disabled": 0,
 					"hidden": 0,
 					"source": [
-						"obj-55",
+						"obj-57",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"destination": [
+						"obj-60",
+						0
+					],
+					"disabled": 0,
+					"hidden": 0,
+					"source": [
+						"obj-59",
+						0
+					]
+				}
+			},
+			{
+				"patchline": {
+					"destination": [
+						"obj-61",
+						0
+					],
+					"disabled": 0,
+					"hidden": 0,
+					"source": [
+						"obj-59",
 						0
 					]
 				}
