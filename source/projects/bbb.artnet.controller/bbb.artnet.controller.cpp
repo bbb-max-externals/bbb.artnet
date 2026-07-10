@@ -703,21 +703,55 @@ private:
         }
 
         m_send_only_socket.send_to(asio::buffer(packet), destination_endpoint, 0, error_code);
-        if(error_code) {
-            cerr << "bbb.artnet.controller: send_only send failed: "
-                 << error_code.message().c_str() << c74::min::endl;
-            return false;
+        if(!error_code) {
+            return true;
         }
-        return true;
+
+        asio::error_code first_error = error_code;
+        if(is_retryable_network_error(first_error)) {
+            close_send_only_socket();
+            open_send_only_socket();
+            if(m_send_only_socket.is_open()) {
+                error_code.clear();
+                m_send_only_socket.send_to(asio::buffer(packet), destination_endpoint, 0, error_code);
+                if(!error_code) {
+                    if(verbose) {
+                        cout << "bbb.artnet.controller: send_only recovered after reopening socket"
+                             << c74::min::endl;
+                    }
+                    return true;
+                }
+            }
+        }
+
+        asio::error_code local_endpoint_error;
+        asio::ip::udp::endpoint local_endpoint = m_send_only_socket.is_open()
+            ? m_send_only_socket.local_endpoint(local_endpoint_error)
+            : asio::ip::udp::endpoint{};
+
+        cerr << "bbb.artnet.controller: send_only send failed: "
+             << error_code.message().c_str()
+             << ", destination=" << destination_endpoint.address().to_string().c_str()
+             << ":" << destination_endpoint.port();
+        if(!local_endpoint_error && 0 < local_endpoint.port()) {
+            cerr << ", local=" << local_endpoint.address().to_string().c_str()
+                 << ":" << local_endpoint.port();
+        }
+        if(error_code != first_error) {
+            cerr << ", first_error=" << first_error.message().c_str();
+        }
+        cerr << c74::min::endl;
+        return false;
     }
 
     void send_all_send_only() {
+        bool success = true;
         if(blackout) {
             std::vector<uint8_t> zeros(512, 0);
             for(int i = 0; i < num_universes; ++i) {
                 uint16_t port_address{0};
                 if(!port_address_for_buffer_index(i, port_address)) continue;
-                send_dmx_send_only(port_address, 512, zeros.data());
+                success = send_dmx_send_only(port_address, 512, zeros.data()) && success;
             }
         } else {
             for(int i = 0; i < num_universes; ++i) {
@@ -726,14 +760,37 @@ private:
                 if(0 < length) {
                     uint16_t port_address{0};
                     if(!port_address_for_buffer_index(i, port_address)) continue;
-                    send_dmx_send_only(port_address, static_cast<int16_t>(length), m_buffer.data() + offset);
+                    success = send_dmx_send_only(
+                        port_address,
+                        static_cast<int16_t>(length),
+                        m_buffer.data() + offset
+                    ) && success;
                 }
             }
+        }
+
+        if(!success) {
+            m_running = false;
+            return;
         }
 
         m_prev_buffer = m_buffer;
         m_dirty = false;
         output.send(c74::min::k_sym_bang);
+    }
+
+    bool is_retryable_network_error(const asio::error_code& error_code) const {
+        if(error_code == asio::error::host_unreachable
+            || error_code == asio::error::network_down
+            || error_code == asio::error::network_unreachable) {
+            return true;
+        }
+#if defined(EHOSTDOWN)
+        if(error_code.value() == EHOSTDOWN) {
+            return true;
+        }
+#endif
+        return false;
     }
 
     uint8_t next_dmx_sequence(uint16_t port_address) {
