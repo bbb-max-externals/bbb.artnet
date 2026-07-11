@@ -647,12 +647,42 @@ private:
             return;
         }
 
-        if(!get_bind_ip_str().empty() && get_bind_ip_str() != "0.0.0.0") {
-            cout << "bbb.artnet.controller: send_only ignores bind_ip; using OS routing"
+        std::string bind_ip_string = get_bind_ip_str();
+        if(!bind_ip_string.empty() && bind_ip_string != "0.0.0.0") {
+            asio::ip::address_v4 bind_address = asio::ip::make_address_v4(bind_ip_string, error_code);
+            if(error_code) {
+                cerr << "bbb.artnet.controller: invalid send_only bind_ip: "
+                     << bind_ip_string.c_str() << c74::min::endl;
+                close_send_only_socket();
+                return;
+            }
+
+            m_send_only_socket.bind(asio::ip::udp::endpoint(bind_address, 0), error_code);
+            if(error_code) {
+                cerr << "bbb.artnet.controller: send_only bind failed for "
+                     << bind_ip_string.c_str() << ":0: "
+                     << error_code.message().c_str() << c74::min::endl;
+                close_send_only_socket();
+                return;
+            }
+
+            asio::ip::udp::endpoint local_endpoint = m_send_only_socket.local_endpoint(error_code);
+            if(error_code) {
+                cerr << "bbb.artnet.controller: send_only local endpoint query failed: "
+                     << error_code.message().c_str() << c74::min::endl;
+                close_send_only_socket();
+                return;
+            }
+
+            cout << "bbb.artnet.controller: send_only bound to "
+                 << local_endpoint.address().to_string().c_str()
+                 << ":" << local_endpoint.port()
+                 << ", mode: " << (is_unicast_mode() ? "unicast" : "broadcast")
                  << c74::min::endl;
+            return;
         }
 
-        cout << "bbb.artnet.controller: send_only open, mode: "
+        cout << "bbb.artnet.controller: send_only open with OS-selected interface, mode: "
              << (is_unicast_mode() ? "unicast" : "broadcast")
              << c74::min::endl;
     }

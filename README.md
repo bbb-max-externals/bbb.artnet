@@ -48,7 +48,7 @@ Sends DMX data via Art-Net protocol. Supports broadcast and unicast.
 **Art-Net socket behavior:**
 - Default mode uses the shared managed Art-Net node and binds UDP port `6454`. That is the correct path when you need normal Art-Net node/control behavior.
 - `@send_only 1` sends only ArtDmx packets from an ephemeral source port and does **not** bind/listen on `6454`.
-- In `@send_only 1`, `bind_ip` is ignored; OS routing chooses the outgoing interface. If you need deterministic interface selection, do not pretend this is free: binding a local interface and “never bind” are competing requirements.
+- In `@send_only 1`, a non-empty `bind_ip` binds the sender to that local IPv4 address with source port `0` (an OS-assigned ephemeral port). This selects the source interface without occupying or listening on Art-Net port `6454`. With an empty `bind_ip`, OS routing chooses the outgoing interface.
 - ArtDmx `Sequence` is enabled and tracked per final Art-Net port-address: it starts at `1`, increments to `255`, then wraps to `1`. It intentionally never emits `0`, because `0` disables sequence tracking.
 - Universe remapping is available at the sender boundary: `@input_universe_start 1 @output_universe_start 101` maps logical `universe 1..13` data to output universes `101..113`. Remap attributes are user-facing 1-based; Art-Net converts to 0-based Port-Address internally at the final protocol boundary.
 - `@output_universe_start 0` disables remapping and preserves existing `net/subnet/universe` behavior. This compatibility escape hatch is deliberate; do not remove it unless you want to break existing patches.
