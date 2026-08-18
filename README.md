@@ -1,5 +1,8 @@
 # bbb.artnet
 
+> [!WARNING]
+> This repository is published as AI-assisted, insufficiently tested work in progress ("AI slop"). Treat it as experimental. Correctness, stability, compatibility, and fitness for production use are not guaranteed.
+
 Max/MSP externals for Art-Net and sACN DMX send/receive.
 
 ## Objects
