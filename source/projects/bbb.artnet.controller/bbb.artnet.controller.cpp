@@ -283,6 +283,15 @@ private:
     }
 
     void init_artnet() {
+        // num_universes / @attributes are applied after the constructor, so the
+        // buffers (sized in the constructor with the default num_universes) must
+        // be resized here, once the attribute holds its final value.
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_buffer.resize(512 * num_universes, 0);
+            m_prev_buffer.resize(512 * num_universes, 0);
+        }
+
         const char* ip = resolve_bind_ip();
         m_managed_node = bbb::artnet::managed_node::get_or_create(ip);
         if(!m_managed_node || !m_managed_node->valid()) {

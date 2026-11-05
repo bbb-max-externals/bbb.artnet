@@ -111,7 +111,11 @@ public:
         }
     };
 
-    c74::min::timer<c74::min::timer_options::defer_delivery> m_output_timer{this,
+    // Output is scheduled from the libartnet read thread (handle_dmx), so it must
+    // use a qelem-based queue, which is safe to signal from any thread. A
+    // timer's delay() calls clock_fdelay(), which is not safe to call off the
+    // main/scheduler thread.
+    c74::min::queue<> m_output_queue{this,
         MIN_FUNCTION {
             std::lock_guard<std::mutex> lock(m_mutex);
             output_data();
@@ -164,6 +168,16 @@ private:
     }
 
     void init_artnet() {
+        // num_universes / @attributes are applied after the constructor, so the
+        // buffers (sized in the constructor with the default num_universes) must
+        // be resized here, once the attribute holds its final value.
+        {
+            std::lock_guard<std::mutex> lock(m_mutex);
+            m_buffer.resize(512 * num_universes, 0);
+            m_prev_buffer.resize(512 * num_universes, 0);
+            m_received_universes.assign(num_universes, false);
+        }
+
         const char* ip = resolve_bind_ip();
         m_managed_node = bbb::artnet::managed_node::get_or_create(ip);
         if(!m_managed_node || !m_managed_node->valid()) {
@@ -231,10 +245,10 @@ private:
     void handle_mode_output() {
         int m = mode;
         if(m == 0 || m == 1) {
-            m_output_timer.delay(0);
+            m_output_queue.set();
         } else if(m == 3) {
             if(m_buffer != m_prev_buffer) {
-                m_output_timer.delay(0);
+                m_output_queue.set();
             }
         }
     }
