@@ -23,6 +23,9 @@ target_include_directories(bbb_universe_remap_tests PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/source
 )
 add_test(NAME bbb_universe_remap_tests COMMAND bbb_universe_remap_tests)
+add_executable(bbb_rdm_extent_tests tests/rdm_extent_tests.cpp)
+target_include_directories(bbb_rdm_extent_tests PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/source)
+add_test(NAME bbb_rdm_extent_tests COMMAND bbb_rdm_extent_tests)
 
 add_custom_target(generate_version ALL
     COMMAND ${CMAKE_COMMAND}
