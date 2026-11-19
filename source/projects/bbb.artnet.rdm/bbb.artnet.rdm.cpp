@@ -1,6 +1,7 @@
 #include "c74_min.h"
 #include <bbb/artnet/artnet_node_manager.hpp>
 #include <bbb/version.h>
+#include <bbb/rdm_extent.hpp>
 #include <cstring>
 #include <exception>
 #include <string>
@@ -528,11 +529,8 @@ private:
         }
     }
 
-    void handle_rdm(int /*address*/, uint8_t* rdm, int /*length*/) {
-        if(rdm[0] != 0x01) return;
-
-        uint8_t msg_len = rdm[1];
-        if(msg_len < 24) return;
+    void handle_rdm(int /*address*/, const uint8_t* rdm, int length) {
+        if(!bbb::artnet::complete_rdm_message(rdm, length)) return;
 
         uint8_t cc = rdm[19];
         if(cc != CC_GET_RESPONSE && cc != CC_SET_RESPONSE) return;
@@ -543,6 +541,7 @@ private:
         uint8_t resp_type = rdm[15];
         uint16_t pid = (static_cast<uint16_t>(rdm[20]) << 8) | rdm[21];
         uint8_t pdl = rdm[22];
+        if(resp_type != RESP_ACK && (resp_type != RESP_NACK || pdl != 2)) return;
 
         {
             std::lock_guard<std::mutex> lock(m_pending_mutex);
@@ -559,14 +558,10 @@ private:
             for(uint8_t i = 0; i < pdl; ++i) {
                 resp.data.push_back(static_cast<int>(rdm[23 + i]));
             }
-        } else if(resp_type == RESP_NACK) {
-            resp.type = queued_response::NACK;
-            if(pdl >= 2) {
-                uint16_t reason = (static_cast<uint16_t>(rdm[23]) << 8) | rdm[24];
-                resp.data.push_back(static_cast<int>(reason));
-            }
         } else {
-            return;
+            resp.type = queued_response::NACK;
+            uint16_t reason = (static_cast<uint16_t>(rdm[23]) << 8) | rdm[24];
+            resp.data.push_back(static_cast<int>(reason));
         }
 
         std::lock_guard<std::mutex> lock(m_queue_mutex);
